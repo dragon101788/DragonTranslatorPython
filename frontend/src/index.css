@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lexi-bg: #0f172a;
+  --color-lexi-sidebar: #1e293b;
+  --color-lexi-card: #1e293b;
+  --color-lexi-border: #334155;
+  --color-lexi-text: #e2e8f0;
+  --color-lexi-text-muted: #94a3b8;
+  --color-lexi-accent: #6366f1;
+  --color-lexi-accent-hover: #818cf8;
+  --color-lexi-success: #22c55e;
+  --color-lexi-warning: #f59e0b;
+  --color-lexi-error: #ef4444;
+  --color-lexi-input: #0f172a;
+  --color-lexi-hover: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- 月光白 (Clean 风格) ---- */
+[data-theme="light"] {
+  --color-lexi-bg: #ffffff;
+  --color-lexi-sidebar: #f8f9fa;
+  --color-lexi-card: #ffffff;
+  --color-lexi-border: #e9ecef;
+  --color-lexi-text: #1a1a2e;
+  --color-lexi-text-muted: #868e96;
+  --color-lexi-accent: #5b7cfa;
+  --color-lexi-accent-hover: #4a6cf7;
+  --color-lexi-input: #f8f9fa;
+  --color-lexi-hover: rgba(0, 0, 0, 0.04);
+}
+
+/* ---- 暗夜紫 (One Dark Pro 风格) ---- */
+[data-theme="geek"] {
+  --color-lexi-bg: #13131a;
+  --color-lexi-sidebar: #1a1a24;
+  --color-lexi-card: #1e1e2a;
+  --color-lexi-border: #2d2d3f;
+  --color-lexi-text: #cdd6f4;
+  --color-lexi-text-muted: #7a7f9a;
+  --color-lexi-accent: #8b5cf6;
+  --color-lexi-accent-hover: #a78bfa;
+  --color-lexi-input: #1a1a24;
+  --color-lexi-hover: rgba(255, 255, 255, 0.06);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+html {
+  font-size: var(--lexi-font-size, 14px);
+}
+
+body {
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background-color: var(--color-lexi-bg);
+  color: var(--color-lexi-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-lexi-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-lexi-text-muted);
+}
+
+.markdown-body {
+  line-height: 1.7;
+  word-break: break-word;
+}
+.markdown-body p {
+  margin-bottom: 0.75em;
+}
+.markdown-body strong {
+  color: var(--color-lexi-accent-hover);
+  font-weight: 600;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  color: var(--color-lexi-text);
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+.markdown-body h2 {
+  font-size: 1.1em;
+  border-bottom: 1px solid var(--color-lexi-border);
+  padding-bottom: 0.3em;
+}
+.markdown-body h3 {
+  font-size: 1em;
+}
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+.markdown-body li {
+  margin-bottom: 0.25em;
+}
+.markdown-body code {
+  background: rgba(99, 102, 241, 0.15);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+.markdown-body pre {
+  background: var(--color-lexi-input);
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 0.75em;
+  border: 1px solid var(--color-lexi-border);
+}
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+}
+.markdown-body blockquote {
+  border-left: 3px solid var(--color-lexi-accent);
+  padding-left: 1em;
+  color: var(--color-lexi-text-muted);
+  margin-bottom: 0.75em;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--color-lexi-border);
+  margin: 1em 0;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75em;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--color-lexi-border);
+  padding: 0.4em 0.75em;
+  text-align: left;
+}
+.markdown-body th {
+  background: var(--color-lexi-input);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-lexi-accent);
+  outline-offset: 2px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(99, 102, 241, 0);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+/* ---- Custom title bar buttons ---- */
+
+.titlebar-btn {
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-lexi-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.titlebar-btn:hover {
+  background: var(--color-lexi-hover);
+  color: var(--color-lexi-text);
+}
+
+.titlebar-btn-close:hover {
+  background: var(--color-lexi-error);
+  color: white;
+}
+
+/* ---- Browser toolbar buttons ---- */
+
+.titlebar-btn-browser {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-lexi-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.titlebar-btn-browser:hover {
+  background: var(--color-lexi-hover);
+  color: var(--color-lexi-text);
+}

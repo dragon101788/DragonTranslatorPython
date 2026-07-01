@@ -1,0 +1,36 @@
+{
+  "providers": [],
+  "settings": {
+    "shortcutModifiers": ["Ctrl", "Alt"],
+    "shortcutKey": "X",
+    "alwaysOnTop": false,
+    "webdav": {
+      "enabled": false,
+      "url": "",
+      "username": "",
+      "password": "",
+      "remotePath": "/dragon-translator-config.json",
+      "syncOnStart": false,
+      "lastSync": null
+    },
+    "theme": "dark",
+    "fontSize": 14,
+    "closeToTray": true,
+    "ttsRate": 1.0,
+    "ttsAutoRead": false,
+    "ttsVoice": {},
+    "bergamot": {
+      "beamSize": 1,
+      "cacheSize": 0,
+      "direction": "auto"
+    },
+    "polishStyles": [],
+    "activeStyleId": null,
+    "localModel": {
+      "enabled": true,
+      "port": 5158,
+      "activeModel": "",
+      "customModels": []
+    }
+  }
+}

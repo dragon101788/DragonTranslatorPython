@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>Bergamot 独立测试</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #1a1a2e; color: #e0e0e0; }
+h1 { color: #7ec8e3; }
+.section { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #0f3460; }
+label { display: block; margin-bottom: 6px; font-weight: 600; color: #a0b4c8; font-size: 13px; }
+textarea, select { width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 6px; font-size: 14px; box-sizing: border-box; background: #1a1a2e; color: #e0e0e0; }
+textarea { min-height: 80px; resize: vertical; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+button { background: #0f3460; color: #e0e0e0; border: 1px solid #1a5276; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+button:hover:not(:disabled) { background: #1a5276; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: #1a6b3c; border-color: #27ae60; }
+button.primary:hover:not(:disabled) { background: #27ae60; }
+#output { margin-top: 12px; padding: 14px; border-radius: 6px; background: #0a1628; border: 1px solid #0f3460; white-space: pre-wrap; min-height: 50px; font-size: 15px; line-height: 1.6; }
+#log { margin-top: 12px; padding: 10px; border-radius: 6px; background: #0a0a1a; border: 1px solid #1a1a3e; font-family: monospace; font-size: 12px; color: #7ec8e3; max-height: 200px; overflow-y: auto; display: none; }
+.meta { display: flex; gap: 20px; margin-top: 8px; font-size: 12px; color: #888; }
+.meta span { background: #0a1628; padding: 3px 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>🧪 Bergamot 离线翻译 — 独立测试</h1>
+<div class="section">
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+    <span id="status" style="font-size:13px; padding:4px 10px; border-radius:4px; background:#1a1a3e;">⏳ 初始化中...</span>
+  </div>
+  <label for="direction">翻译方向</label>
+  <select id="direction" onchange="onDirChange()">
+    <option value="enzh">英语 → 中文</option>
+    <option value="zhen">中文 → 英语</option>
+  </select>
+  <label for="input" style="margin-top:10px;">输入文本</label>
+  <textarea id="input" placeholder="输入要翻译的文本...">What time is the meeting tomorrow?</textarea>
+  <div class="btn-row">
+    <button onclick="setTestCase(0)">日常对话</button>
+    <button onclick="setTestCase(1)">技术内容</button>
+    <button onclick="setTestCase(2)">长难句</button>
+    <button class="primary" id="translateBtn" disabled onclick="doTranslate()">⚡ 翻译</button>
+    <button onclick="doBenchmark()" id="benchBtn" disabled>⏱ 压力测试</button>
+  </div>
+  <div id="output" style="color:#666;">等待引擎就绪...</div>
+  <div class="meta" id="meta"></div>
+</div>
+<pre id="log"></pre>
+
+<script>
+const BASE = './'; // served from public/bergamot/
+
+const TEST_CASES = {
+  enzh: [
+    "What time is the meeting tomorrow?",
+    "The system requires 16GB of RAM to run efficiently.",
+    "Despite the challenges posed by the rapidly changing market conditions, the company managed to maintain its competitive edge through innovative product development and strategic partnerships."
+  ],
+  zhen: [
+    "今天天气真不错，我们去公园散步吧。",
+    "这个算法的时间复杂度是O(n log n)，在数据量较大时表现优异。",
+    "尽管市场竞争日益激烈，但公司通过持续创新和优质服务，依然保持了领先地位。"
+  ]
+};
+
+function setTestCase(i) {
+  const dir = document.getElementById('direction').value;
+  document.getElementById('input').value = TEST_CASES[dir][i];
+}
+
+function onDirChange() {
+  const dir = document.getElementById('direction').value;
+  document.getElementById('input').value = TEST_CASES[dir][0];
+}
+
+// ===== Logging =====
+function log(msg) {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  el.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(text, color) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.style.background = color || '#1a1a3e';
+}
+
+// ===== Bergamot init =====
+let M = null;
+let service = null;
+let models = { enzh: null, zhen: null };
+let ready = false;
+
+const MODEL_FILES = {
+  enzh: { model: 'enzh/model.enzh.intgemm.alphas.bin', lex: 'enzh/lex.50.50.enzh.s2t.bin', vocab: 'enzh/vocab.enzh.spm' },
+  zhen: { model: 'zhen/model.zhen.intgemm.alphas.bin', lex: 'zhen/lex.50.50.zhen.s2t.bin', vocab: 'zhen/vocab.zhen.spm' },
+};
+
+async function loadModel(dir) {
+  const files = MODEL_FILES[dir];
+  log(`  加载 ${dir} 模型文件...`);
+  const t0 = performance.now();
+  const [mr, lr, vr] = await Promise.all([
+    fetch(BASE + files.model), fetch(BASE + files.lex), fetch(BASE + files.vocab)
+  ]);
+  if (!mr.ok) throw new Error(`${files.model} HTTP ${mr.status}`);
+  const [mb, lb, vb] = await Promise.all([mr.arrayBuffer(), lr.arrayBuffer(), vr.arrayBuffer()]);
+  log(`  下载完成 (${(mb.byteLength/1e6).toFixed(1)}MB + ${(lb.byteLength/1e6).toFixed(1)}MB + ${(vb.byteLength/1e6).toFixed(1)}MB) ${(performance.now()-t0).toFixed(0)}ms`);
+
+  const aa = (buf, align) => { const m = new M.AlignedMemory(buf.byteLength, align); m.getByteArrayView().set(new Int8Array(buf)); return m; };
+  const vl = new M.AlignedMemoryList();
+  vl.push_back(aa(vb, 64));
+  const cfg = "beam-size: 1\nnormalize: 1.0\nword-penalty: 0\ncpu-threads: 0\nalignment: soft\nquiet: true\nquiet-translation: true\nmax-length-break: 128\nmini-batch-words: 1024\nworkspace: 128\nmax-length-factor: 2.0\nskip-cost: true\ngemm-precision: int8shiftAlphaAll";
+  const model = new M.TranslationModel(cfg, aa(mb, 256), lb.byteLength > 0 ? aa(lb, 64) : new M.AlignedMemory(0, 64), vl, null);
+  log(`  ✅ ${dir} 模型构建完成`);
+  return model;
+}
+
+const GEMM_FB = {
+  int8_prepare_a: "_int8PrepareAFallback", int8_prepare_b: "_int8PrepareBFallback",
+  int8_prepare_b_from_transposed: "_int8PrepareBFromTransposedFallback",
+  int8_prepare_b_from_quantized_transposed: "_int8PrepareBFromQuantizedTransposedFallback",
+  int8_prepare_bias: "_int8PrepareBiasFallback", int8_multiply_and_add_bias: "_int8MultiplyAndAddBiasFallback",
+  int8_select_columns_of_b: "_int8SelectColumnsOfBFallback",
+};
+
+async function init() {
+  try {
+    setStatus('⏳ 加载 WASM...', '#1a1a3e');
+    log('开始初始化 Bergamot...');
+
+    const t0 = performance.now();
+    const [wasmResp, jsResp] = await Promise.all([
+      fetch(BASE + 'bergamot-translator-worker.wasm'),
+      fetch(BASE + 'bergamot-translator-worker.js'),
+    ]);
+    if (!wasmResp.ok || !jsResp.ok) throw new Error('WASM/JS 文件加载失败');
+    const wasmBinary = await wasmResp.arrayBuffer();
+    const workerJs = await jsResp.text();
+    log(`WASM+JS 下载: ${(wasmBinary.byteLength/1e6).toFixed(1)}MB, ${(performance.now()-t0).toFixed(0)}ms`);
+
+    setStatus('⏳ 初始化运行时...', '#1a1a3e');
+    await new Promise((resolve, reject) => {
+      const gemmStubs = {};
+      for (const [k, v] of Object.entries(GEMM_FB)) {
+        // Try both _name and name conventions at CALL TIME
+        gemmStubs[k] = (...a) => {
+          const asm = globalThis.Module?.asm;
+          if (!asm) return 0;
+          if (typeof asm[v] === 'function') return asm[v](...a);
+          const noUnderscore = v.startsWith('_') ? v.substring(1) : ('_' + v);
+          if (typeof asm[noUnderscore] === 'function') return asm[noUnderscore](...a);
+          return 0;
+        };
+      }
+      globalThis.Module = {
+        wasmBinary,
+        onRuntimeInitialized: () => resolve(),
+        print: () => {}, printErr: () => {},
+        instantiateWasm: (info, accept) => {
+          info.wasm_gemm = gemmStubs;
+          WebAssembly.instantiate(wasmBinary, info).then(r => accept(r.instance)).catch(reject);
+          return {};
+        },
+      };
+      try { (0, eval)(workerJs); } catch (e) { reject(e); }
+    });
+    log(`WASM 运行时初始化: ${(performance.now()-t0).toFixed(0)}ms`);
+
+    M = globalThis.Module;
+    // Debug: check intgemm exports
+    const int8Keys = Object.keys(M.asm || {}).filter(k => k.toLowerCase().includes('int8'));
+    log(`int8 相关导出 (M.asm): ${int8Keys.sort().join(', ') || '(无)'}`);
+    // Check both naming conventions
+    const testFunc = M.asm?._int8PrepareAFallback || M.asm?.int8PrepareAFallback;
+    log(`int8PrepareAFallback 可用: ${!!testFunc} (有_: ${!!M.asm?._int8PrepareAFallback}, 无_: ${!!M.asm?.int8PrepareAFallback})`);
+
+    // Fix gemm stubs to use correct naming
+    const GEMM_STUBS = {};
+    for (const [k, v] of Object.entries(GEMM_FB)) {
+      const name = v; // e.g. "_int8PrepareAFallback"
+      // Try both naming conventions
+      const actualName = M.asm?.[name] ? name : M.asm?.[name.substring(1)] ? name.substring(1) : null;
+      if (!actualName) {
+        log(`WARNING: gemm function ${name} (or without _) not found in M.asm`);
+        GEMM_STUBS[k] = (...a) => { log(`GEMM STUB ${k} called but not found!`); return 0; };
+      } else if (actualName !== name) {
+        log(`GEMM: ${name} → ${actualName}`);
+        GEMM_STUBS[k] = (...a) => M.asm[actualName](...a);
+      } else {
+        GEMM_STUBS[k] = (...a) => M.asm[actualName](...a);
+      }
+    }
+
+    setStatus('⏳ 加载 en→zh 模型...', '#1a1a3e');
+    models.enzh = await loadModel('enzh');
+
+    setStatus('⏳ 加载 zh→en 模型...', '#1a1a3e');
+    models.zhen = await loadModel('zhen');
+
+    ready = true;
+    document.getElementById('translateBtn').disabled = false;
+    document.getElementById('benchBtn').disabled = false;
+    document.getElementById('output').textContent = '✅ 引擎就绪，点击翻译按钮测试';
+    document.getElementById('output').style.color = '#5cb85c';
+    setStatus('✅ 就绪', '#1a3e1a');
+    log(`✅ 全部就绪! 总耗时 ${(performance.now()-t0).toFixed(0)}ms`);
+  } catch (e) {
+    setStatus('❌ 失败', '#3e1a1a');
+    document.getElementById('output').textContent = '❌ 初始化失败: ' + (e.message || e);
+    document.getElementById('output').style.color = '#d9534f';
+    log(`❌ ${e.message || e}`);
+    console.error(e);
+  }
+}
+
+// ===== Translate =====
+// CRITICAL: BlockingService.translate() caches internal WASM memory pointers to
+// VectorString/VectorResponseOptions. If V8 GCs those objects, the WASM heap
+// gets corrupted and output becomes garbage (e.g. repeated characters).
+// We keep old objects alive via _all to prevent this.
+const _all = [];
+
+async function doTranslate() {
+  if (!ready) return;
+  const input = document.getElementById('input').value.trim();
+  if (!input) return;
+  const dir = document.getElementById('direction').value;
+  const output = document.getElementById('output');
+  const meta = document.getElementById('meta');
+
+  output.textContent = '翻译中...';
+  output.style.color = '#7ec8e3';
+  const t0 = performance.now();
+
+  try {
+    const model = models[dir];
+    if (!model) throw new Error('模型未加载');
+
+    // CRITICAL: VectorResponseOptions must have one entry per input string.
+    // Without push_back, the C++ translate() reads uninitialized memory → garbage.
+    const inp = new M.VectorString();
+    inp.push_back(input);
+    const opts = new M.VectorResponseOptions();
+    opts.push_back({alignment: false, html: false, qualityScores: false});
+    _all.push(inp, opts);
+
+    const result = service.translate(model, inp, opts);
+    let text = '';
+    if (result.size() > 0) {
+      text = result.get(0).getTranslatedText() || '';
+    }
+    _all.push(result);
+    while (_all.length > 20) _all.shift();
+
+    const elapsed = performance.now() - t0;
+
+    output.textContent = text || '(空结果)';
+    output.style.color = '#e0e0e0';
+    meta.innerHTML = `<span>方向: ${dir}</span><span>输入: ${input.length} 字符</span><span>输出: ${text.length} 字符</span><span>耗时: ${elapsed.toFixed(0)}ms</span>`;
+    log(`翻译完成 [${dir}] ${input.length}→${text.length} 字符, ${elapsed.toFixed(0)}ms`);
+  } catch (e) {
+    output.textContent = '❌ ' + (e.message || e);
+    output.style.color = '#d9534f';
+    log(`❌ 翻译失败: ${e.message || e}`);
+  }
+}
+
+// ===== Benchmark =====
+async function doBenchmark() {
+  if (!ready) return;
+  const output = document.getElementById('output');
+  const meta = document.getElementById('meta');
+  output.textContent = '压力测试中...';
+  output.style.color = '#7ec8e3';
+
+  const rounds = 5;
+  let total = 0, count = 0;
+  const dir = document.getElementById('direction').value;
+  const text = document.getElementById('input').value.trim();
+  const model = models[dir];
+  if (!model) { output.textContent = '模型未加载'; return; }
+
+  for (let i = 0; i < rounds; i++) {
+    const t0 = performance.now();
+    const inp = new M.VectorString(); inp.push_back(text);
+    const opts = new M.VectorResponseOptions();
+    opts.push_back({alignment: false, html: false, qualityScores: false});
+    const result = service.translate(model, inp, opts);
+    result.get(0).getTranslatedText();
+    _all.push(inp, result);
+    while (_all.length > 30) _all.shift();
+    total += performance.now() - t0;
+    count++;
+    output.textContent = `压力测试中... ${count}/${rounds}`;
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  const avg = total / count;
+  output.textContent = `✅ 压力测试完成`;
+  output.style.color = '#e0e0e0';
+  meta.innerHTML = `<span>轮次: ${rounds}</span><span>平均: ${avg.toFixed(0)}ms</span><span>最快: 见日志</span>`;
+  log(`压力测试: ${rounds}轮, 平均 ${avg.toFixed(0)}ms/次`);
+}
+
+// Start
+window.onload = init;
+</script>
+</body>
+</html>

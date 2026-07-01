@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+*.spec.bak
+
+# Virtual environments
+venv/
+.venv/
+.env
+
+# IDE
+.vscode/
+.claude/
+.idea/
+
+# Runtime logs
+logs/
+
+# User config (may contain API keys)
+config.json
+dragon-translator-config.json
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Runtime resources (user-downloaded)
+runtime/piper-voices/*.onnx
+runtime/piper-voices/*.onnx.json
+runtime/*.gguf
+
+# Large models (downloaded by users, several GB)
+runtime/*.gguf
+runtime/piper-voices/*.onnx
+runtime/piper-voices/*.onnx.json
+
+# PyInstaller
+*.spec.bak
+build/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

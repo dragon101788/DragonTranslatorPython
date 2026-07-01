@@ -1,0 +1,6 @@
+pywebview>=5.0
+pystray
+Pillow
+pywin32
+PyAudio
+httpx
