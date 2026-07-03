@@ -24,22 +24,22 @@ config.json
 dragon-translator-config.json
 
 # Node / Frontend
-frontend/node_modules/
-frontend/dist/
+src/frontend/node_modules/
+src/frontend/dist/
+runtime/web/
 
-# Runtime resources (user-downloaded)
-runtime/piper-voices/*.onnx
-runtime/piper-voices/*.onnx.json
-runtime/*.gguf
-
-# Large models (downloaded by users, several GB)
-runtime/*.gguf
-runtime/piper-voices/*.onnx
-runtime/piper-voices/*.onnx.json
+# User-downloaded models (large files)
+models/*.gguf
+models/piper-voices/*.onnx
+models/piper-voices/*.onnx.json
+runtime/piper-voices/
 
 # PyInstaller
 *.spec.bak
 build/
+
+# Old build artifacts
+dist_old_*/
 
 # OS
 Thumbs.db

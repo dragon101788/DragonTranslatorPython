@@ -1,6 +1,10 @@
-# 龙腾翻译 (Dragon Translator)
+# 龙腾翻译 (Dragon Translator) — Python 版
 
 Python 版本的桌面翻译应用，基于 pywebview + React。
+
+> **🔗 Rust 原版已归档至 [DragonTranslatorRust](https://github.com/dragon101788/DragonTranslatorRust)**
+> 
+> 本项目是基于原 Rust/Tauri v2 版本的完整 Python 重构，保留了全部功能和"绿色便携"理念。
 
 ## 功能
 

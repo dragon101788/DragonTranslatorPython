@@ -3,4 +3,3 @@ pystray
 Pillow
 pywin32
 PyAudio
-httpx

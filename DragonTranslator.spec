@@ -11,37 +11,35 @@ The output will be in dist/DragonTranslator/
 import os
 from pathlib import Path
 
-# Project root
-ROOT = Path(__file__).parent.resolve()
+# Project root — SPECPATH is the directory containing the spec file
+ROOT = Path(SPECPATH).resolve()
 
 a = Analysis(
-    [str(ROOT / "dragon_translator" / "__main__.py")],
+    [str(ROOT / "src" / "__main__.py")],
     pathex=[str(ROOT)],
     binaries=[],
     datas=[
         # Web frontend (Vite build output)
-        (str(ROOT / "web"), "web"),
-        # Runtime resources
-        (str(ROOT / "runtime" / "default-config.json"), "runtime"),
-        (str(ROOT / "runtime" / "llama-config.json"), "runtime"),
+        (str(ROOT / "runtime" / "web"), "web"),
         # Icon for tray
-        (str(ROOT / "dragon_translator" / "icon.ico"), "dragon_translator"),
-        # Piper TTS engine (if exists)
-        *([(str(ROOT / "runtime" / "piper"), "runtime/piper")] if (ROOT / "runtime" / "piper").exists() else []),
-        # Piper voices (if any)
-        *([(str(ROOT / "runtime" / "piper-voices"), "runtime/piper-voices")] if (ROOT / "runtime" / "piper-voices").exists() else []),
-        # Llamafile executable (if exists)
-        *([(str(ROOT / "runtime" / "llamafile-vulkan.exe"), "runtime")] if (ROOT / "runtime" / "llamafile-vulkan.exe").exists() else []),
+        (str(ROOT / "src" / "icon.ico"), "src"),
+        # Runtime configs (dest "." = root of MEIPASS = runtime/)
+        (str(ROOT / "runtime" / "default-config.json"), "."),
+        (str(ROOT / "runtime" / "llama-config.json"), "."),
+        # Base voice models (shipped with app)
+        *([(str(ROOT / "runtime" / "piper-voices"), "piper-voices")]
+          if (ROOT / "runtime" / "piper-voices").exists() else []),
+        # Large binaries (piper, llamafile) copied by 打包.py
     ],
     hiddenimports=[
-        "dragon_translator",
-        "dragon_translator.paths",
-        "dragon_translator.logger",
-        "dragon_translator.user_files",
-        "dragon_translator.single_instance",
-        "dragon_translator.llama_manager",
-        "dragon_translator.tts",
-        "dragon_translator.app",
+        "src",
+        "src.paths",
+        "src.logger",
+        "src.user_files",
+        "src.single_instance",
+        "src.llama_manager",
+        "src.tts",
+        "src.app",
         "webview",
         "webview.platforms.winforms",
         "clr",
@@ -83,8 +81,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
+    [],
+    [],
     [],
     name="龙腾翻译",
     debug=False,
@@ -93,8 +91,9 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # No console window (like .pyw)
-    icon=str(ROOT / "dragon_translator" / "icon.ico"),
+    console=False,
+    icon=str(ROOT / "src" / "icon.ico"),
+    contents_directory="runtime",  # merge _internal into runtime/
 )
 
 # Create a folder distribution (portable)
