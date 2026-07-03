@@ -366,6 +366,46 @@ export default function SettingsDialog({ onClose, defaultTab }: SettingsDialogPr
                       />
                     </button>
                   </div>
+
+                  {/* Input position */}
+                  <div>
+                    <label className="block text-xs text-lexi-text-muted mb-1">
+                      输入区位置
+                    </label>
+                    <select
+                      value={settings.inputPosition}
+                      onChange={(e) =>
+                        updateSettings({
+                          inputPosition: e.target.value as "top" | "bottom",
+                        })
+                      }
+                      className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                    >
+                      <option value="top">上方</option>
+                      <option value="bottom">下方</option>
+                    </select>
+                  </div>
+
+                  {/* Card display mode */}
+                  <div>
+                    <label className="block text-xs text-lexi-text-muted mb-1">
+                      卡片显示
+                    </label>
+                    <select
+                      value={settings.cardDisplay}
+                      onChange={(e) =>
+                        updateSettings({
+                          cardDisplay: e.target.value as "flat" | "accordion" | "tabs" | "split",
+                        })
+                      }
+                      className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                    >
+                      <option value="flat">平铺展开</option>
+                      <option value="accordion">手风琴折叠</option>
+                      <option value="tabs">Tab 切换</option>
+                      <option value="split">均分视图</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>

@@ -125,7 +125,7 @@ export default function InputArea({
         }}
         onKeyDown={handleKeyDown}
         placeholder="输入要翻译的文本... Enter 翻译, Shift+Enter 换行"
-        className="w-full bg-transparent text-lexi-text placeholder-lexi-text-muted/50 px-4 py-3 resize-none focus:outline-none text-sm leading-relaxed min-h-[250px]"
+        className="w-full bg-transparent text-lexi-text placeholder-lexi-text-muted/50 px-4 py-3 resize-none focus:outline-none text-sm leading-relaxed min-h-[120px] max-h-[40vh] overflow-y-auto"
         rows={1}
         maxLength={5000}
       />

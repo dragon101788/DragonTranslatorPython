@@ -65,7 +65,7 @@ async function syncLogLevel(level?: string) {
 function _diffSettings(prev: any, next: any): string[] {
   if (!prev || !next) return [];
   const changed: string[] = [];
-  const flatKeys = ["theme", "fontSize", "logLevel", "ttsRate"];
+  const flatKeys = ["theme", "fontSize", "logLevel", "ttsRate", "inputPosition", "cardDisplay"];
   for (const k of flatKeys) {
     if (prev[k] !== next[k]) {
       changed.push(`${k}: ${JSON.stringify(prev[k])} → ${JSON.stringify(next[k])}`);

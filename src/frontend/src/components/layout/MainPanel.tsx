@@ -61,6 +61,17 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
 
   // Copy state
   const [copyState, setCopyState] = useState<Record<string, "idle" | "copied">>({});
+  // Card selection state (accordion / tabs)
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  // Auto-select latest card in accordion/tabs mode
+  useEffect(() => {
+    if ((settings.cardDisplay === "accordion" || settings.cardDisplay === "tabs") && cards.length > 0) {
+      // Prefer the latest non-bergamot card, fallback to bergamot
+      const polishCards = cards.filter((c) => c.cardId !== "bergamot");
+      const latest = polishCards.length > 0 ? polishCards[polishCards.length - 1] : cards[cards.length - 1];
+      setSelectedCardId(latest.cardId);
+    }
+  }, [cards, settings.cardDisplay]);
   const handleCopy = useCallback(async (providerId: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -217,10 +228,10 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
       )}
 
       {editingStyleId === null && (
-        <div className="flex flex-col h-full min-h-0 overflow-y-auto pt-4"
+        <div className="flex flex-col h-full min-h-0 pt-4"
           style={{ display: view === "translation" ? "flex" : "none" }}>
           {/* Status bar */}
-          <div className="flex items-center gap-2 px-5 py-1.5 text-xs text-lexi-text-muted border-b border-lexi-border/50">
+          <div className="flex items-center gap-2 px-5 py-1.5 text-xs text-lexi-text-muted border-b border-lexi-border/50 shrink-0">
             <span>{activeStyle?.icon || "🔄"}</span>
             <span className="font-medium text-lexi-text">{activeStyle?.name || "直接翻译"}</span>
             <span className="text-lexi-border">|</span>
@@ -242,22 +253,174 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           </div>
 
           {/* Main content */}
-          <div className="flex flex-col gap-3 px-5 py-5">
-            <InputArea
-              onTranslate={handleTranslate}
-              onStop={handleStop}
-              translating={isTranslating}
-              onClear={handleClear}
-            />
-            {cards.map((card) => (
-              <OutputCard
-                key={card.cardId}
-                card={card}
-                onStop={handleStop}
-                copyState={copyState}
-                onCopy={handleCopy}
-              />
-            ))}
+          <div className="flex flex-col flex-1 min-h-0 gap-3 px-5 py-5">
+            {settings.inputPosition === "bottom" ? (
+              <>
+                {/* OutputCards area */}
+                {settings.cardDisplay === "tabs" ? (
+                  <div className="flex flex-col flex-1 min-h-0">
+                    <div className="flex shrink-0 border-b border-lexi-border">
+                      {cards.map((card) => (
+                        <button
+                          key={card.cardId}
+                          onClick={() => setSelectedCardId(card.cardId)}
+                          className={`px-3 py-2 text-xs transition-colors border-b-2 -mb-px ${
+                            selectedCardId === card.cardId
+                              ? "font-semibold text-lexi-text border-lexi-accent"
+                              : "font-normal text-lexi-text-muted border-transparent hover:text-lexi-text hover:bg-lexi-hover/20"
+                          }`}
+                        >
+                          {card.providerName}
+                          <span className="ml-1 text-[10px] opacity-60">{card.model}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      {cards.filter((c) => c.cardId === selectedCardId).map((card) => (
+                        <OutputCard
+                          key={card.cardId}
+                          variant="fill"
+                          card={card}
+                          onStop={handleStop}
+                          copyState={copyState}
+                          onCopy={handleCopy}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : settings.cardDisplay === "split" ? (
+                  <div className="flex-1 min-h-0 flex flex-col gap-3">
+                    {cards.map((card) => (
+                      <div key={card.cardId} className="flex-1 min-h-0">
+                        <OutputCard
+                          variant="fill"
+                          card={card}
+                          onStop={handleStop}
+                          copyState={copyState}
+                          onCopy={handleCopy}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                    {cards.map((card) => (
+                      <div key={card.cardId} className={
+                        settings.cardDisplay === "flat" ? "shrink-0" :
+                        settings.cardDisplay === "accordion" && selectedCardId === card.cardId ? "flex-1 min-h-0" :
+                        settings.cardDisplay === "accordion" ? "shrink-0" : ""
+                      }>
+                        <OutputCard
+                          variant={
+                            settings.cardDisplay === "flat" ? "flat" :
+                            settings.cardDisplay === "accordion" && selectedCardId === card.cardId ? "fill" :
+                            "contained"
+                          }
+                          card={card}
+                          onStop={handleStop}
+                          copyState={copyState}
+                          onCopy={handleCopy}
+                          expanded={settings.cardDisplay === "accordion" ? selectedCardId === card.cardId : undefined}
+                          onToggleExpand={settings.cardDisplay === "accordion" ? () => setSelectedCardId(selectedCardId === card.cardId ? null : card.cardId) : undefined}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* InputArea — fixed at bottom */}
+                <div className="shrink-0">
+                  <InputArea
+                    onTranslate={handleTranslate}
+                    onStop={handleStop}
+                    translating={isTranslating}
+                    onClear={handleClear}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* InputArea — fixed at top */}
+                <div className="shrink-0">
+                  <InputArea
+                    onTranslate={handleTranslate}
+                    onStop={handleStop}
+                    translating={isTranslating}
+                    onClear={handleClear}
+                  />
+                </div>
+                {/* OutputCards area */}
+                {settings.cardDisplay === "tabs" ? (
+                  <div className="flex flex-col flex-1 min-h-0">
+                    <div className="flex shrink-0 border-b border-lexi-border">
+                      {cards.map((card) => (
+                        <button
+                          key={card.cardId}
+                          onClick={() => setSelectedCardId(card.cardId)}
+                          className={`px-3 py-2 text-xs transition-colors border-b-2 -mb-px ${
+                            selectedCardId === card.cardId
+                              ? "font-semibold text-lexi-text border-lexi-accent"
+                              : "font-normal text-lexi-text-muted border-transparent hover:text-lexi-text hover:bg-lexi-hover/20"
+                          }`}
+                        >
+                          {card.providerName}
+                          <span className="ml-1 text-[10px] opacity-60">{card.model}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      {cards.filter((c) => c.cardId === selectedCardId).map((card) => (
+                        <OutputCard
+                          key={card.cardId}
+                          variant="fill"
+                          card={card}
+                          onStop={handleStop}
+                          copyState={copyState}
+                          onCopy={handleCopy}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : settings.cardDisplay === "split" ? (
+                  <div className="flex-1 min-h-0 flex flex-col gap-3">
+                    {cards.map((card) => (
+                      <div key={card.cardId} className="flex-1 min-h-0">
+                        <OutputCard
+                          variant="fill"
+                          card={card}
+                          onStop={handleStop}
+                          copyState={copyState}
+                          onCopy={handleCopy}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
+                    {cards.map((card) => (
+                      <div key={card.cardId} className={
+                        settings.cardDisplay === "flat" ? "shrink-0" :
+                        settings.cardDisplay === "accordion" && selectedCardId === card.cardId ? "flex-1 min-h-0" :
+                        settings.cardDisplay === "accordion" ? "shrink-0" : ""
+                      }>
+                        <OutputCard
+                          variant={
+                            settings.cardDisplay === "flat" ? "flat" :
+                            settings.cardDisplay === "accordion" && selectedCardId === card.cardId ? "fill" :
+                            "contained"
+                          }
+                          card={card}
+                          onStop={handleStop}
+                          copyState={copyState}
+                          onCopy={handleCopy}
+                          expanded={settings.cardDisplay === "accordion" ? selectedCardId === card.cardId : undefined}
+                          onToggleExpand={settings.cardDisplay === "accordion" ? () => setSelectedCardId(selectedCardId === card.cardId ? null : card.cardId) : undefined}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

@@ -35,6 +35,9 @@ export interface AppSettings {
   // Theme
   theme: "dark" | "light" | "geek";
   fontSize: number; // px
+  // Layout
+  inputPosition: "top" | "bottom";
+  cardDisplay: "flat" | "accordion" | "tabs" | "split";
   // Tray
   closeToTray: boolean;
   // TTS
@@ -138,6 +141,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   theme: "dark",
   fontSize: 14,
+  inputPosition: "top",
+  cardDisplay: "flat",
   closeToTray: true,
   ttsRate: 1.0,
   ttsAutoRead: false,
