@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Play, Square, RefreshCw, Download, Trash2, Check, Plus,
-  X, Loader2, FolderOpen, AlertTriangle, Cpu,
+  X, Loader2, FolderOpen, Cpu,
 } from "lucide-react";
 import { useConfigStore } from "../../stores/configStore";
 import type { GgufModelInfo, CuratedModel } from "../../types";
@@ -71,6 +71,8 @@ export default function LocalModelTab() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const [diagResult, setDiagResult] = useState<Record<string, any> | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
 
   const [downloadedModels, setDownloadedModels] = useState<GgufModelInfo[]>([]);
   const [downloading, setDownloading] = useState<Record<string, boolean>>({});
@@ -258,6 +260,23 @@ export default function LocalModelTab() {
     }
   };
 
+  // ---- Diagnose ----
+  const handleDiagnose = async () => {
+    setDiagLoading(true);
+    setDiagResult(null);
+    try {
+      const { invoke } = await import("../../services/bridge");
+      const result = await invoke<Record<string, any>>("diagnose_environment", {
+        model: settings.localModel.activeModel || undefined,
+      });
+      setDiagResult(result);
+    } catch (e: any) {
+      setDiagResult({ error: e?.message || String(e) });
+    } finally {
+      setDiagLoading(false);
+    }
+  };
+
   // ---- Download ----
   const downloadModel = async (model: CuratedModel) => {
     setDownloading((prev) => ({ ...prev, [model.filename]: true }));
@@ -416,11 +435,32 @@ export default function LocalModelTab() {
                 <RefreshCw size={14} /> 重启
               </button>
             )}
+            <button
+              onClick={handleDiagnose}
+              disabled={diagLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lexi-hover hover:bg-lexi-border disabled:opacity-40 text-lexi-text text-xs font-medium transition-colors"
+              title="运行环境诊断，帮助排查启动失败原因"
+            >
+              <FolderOpen size={14} /> 诊断
+            </button>
           </div>
         </div>
         {message && (
-          <div className={`mt-2 text-xs p-2 rounded ${isError ? "text-red-400 bg-red-400/10" : "text-green-400 bg-green-400/10"}`}>
+          <div className={`mt-2 text-xs p-2 rounded whitespace-pre-wrap font-mono ${isError ? "text-red-400 bg-red-400/10" : "text-green-400 bg-green-400/10"}`}>
             {message}
+          </div>
+        )}
+        {diagResult && (
+          <div className="mt-2 text-xs p-3 rounded bg-blue-400/5 border border-blue-400/20 max-h-64 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium text-blue-300">🔍 环境诊断结果</span>
+              <button onClick={() => setDiagResult(null)} className="text-lexi-text-muted hover:text-lexi-text">
+                <X size={14} />
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap text-blue-200/80 font-mono leading-relaxed">
+              {JSON.stringify(diagResult, null, 2)}
+            </pre>
           </div>
         )}
       </div>

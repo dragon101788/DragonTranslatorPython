@@ -466,6 +466,14 @@ class JsApi:
             model=args.get("model", ""),
         )
 
+    def diagnose_environment(self, args: dict | None = None) -> dict:
+        """Run system diagnostics for troubleshooting llamafile startup.
+        Returns a dict with detailed environment info.
+        """
+        from src.llama_manager import diagnose_environment
+        args = args or {}
+        return diagnose_environment(model=args.get("model"))
+
     def list_downloaded_models(self, *_args: Any) -> list[dict]:
         from src.llama_manager import list_downloaded_models
         return list_downloaded_models()

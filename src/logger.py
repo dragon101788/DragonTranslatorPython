@@ -5,6 +5,7 @@ Supports runtime log level changes.
 """
 
 import os
+import sys
 import time
 import threading
 from datetime import datetime
@@ -67,7 +68,14 @@ def log(level: int, tag: str, msg: str) -> None:
     level_str = {0: "DEBUG", 1: "INFO", 2: "WARN", 3: "ERROR"}.get(level, "?")
     ts = int(time.time())
     line = f"[{ts}] [{level_str}] [{tag}] {msg}\n"
-    print(line, end="")
+    try:
+        print(line, end="")
+    except UnicodeEncodeError:
+        # Console encoding (e.g. GBK on Chinese Windows) may not support
+        # all characters — strip non-encodable chars and retry
+        print(line.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(
+            sys.stdout.encoding or "utf-8", errors="replace"
+        ), end="")
 
     try:
         logs = _get_logs_dir()
@@ -84,7 +92,11 @@ def write_raw(tag: str, content: str) -> None:
     ts = int(time.time())
     header = f"--- [{tag}] {ts} ---"
     body = content.strip()
-    print(f"{header}\n{body}")
+    try:
+        print(f"{header}\n{body}")
+    except UnicodeEncodeError:
+        enc = sys.stdout.encoding or "utf-8"
+        print(f"{header}\n{body}".encode(enc, errors="replace").decode(enc, errors="replace"))
     try:
         logs = _get_logs_dir()
         os.makedirs(logs, exist_ok=True)

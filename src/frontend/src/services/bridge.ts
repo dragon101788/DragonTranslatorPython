@@ -12,15 +12,32 @@ function pywebviewApi(): any {
 }
 
 /**
- * Wait for pywebview API to be ready.
- * On startup there's a brief window where the page script runs before
- * pywebview finishes injecting its JS bridge.
+ * Wait for pywebview API to be ready — not just the api object existing,
+ * but actual methods being registered (pywebview injects methods one-by-one).
+ *
+ * Uses get_app_dir (a simple, always-present method) as a sentinel.
  */
-async function waitForPywebviewApi(timeoutMs = 5000): Promise<any> {
+async function waitForPywebviewApi(timeoutMs = 8000): Promise<any> {
   const start = Date.now();
+
+  // Phase 1: wait for window.pywebview.api to exist
   while (Date.now() - start < timeoutMs) {
     const api = pywebviewApi();
-    if (api) return api;
+    if (api) {
+      // Phase 2: wait for at least one method to be registered (sentinel)
+      // pywebview 5.x uses camelCase, 6.x uses snake_case — check both
+      while (Date.now() - start < timeoutMs) {
+        const sentinel =
+          typeof api.get_app_dir === "function" ||
+          typeof api.getAppDir === "function";
+        if (sentinel) {
+          return api;
+        }
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      // Sentinel never appeared — return whatever we have
+      return api;
+    }
     await new Promise((r) => setTimeout(r, 50));
   }
   return null;

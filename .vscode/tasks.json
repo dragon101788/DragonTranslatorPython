@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build & Run (build.bat)",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build.bat",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "构建前端并运行应用"
+        },
+        {
+            "label": "PyInstaller 打包",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "打包.py"
+            ],
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "完整打包流程 (清理→构建前端→PyInstaller→复制运行时→展平)"
+        }
+    ]
+}

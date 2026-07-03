@@ -78,13 +78,17 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
+# Output exe directly into the portable folder (avoid duplicate at dist/)
+# Use forward-slash for cross-platform compat in PyInstaller name
+_TARGET_DIR = "DragonTranslator"
+
 exe = EXE(
     pyz,
     a.scripts,
     [],
     [],
     [],
-    name="龙腾翻译",
+    name=os.path.join(_TARGET_DIR, "龙腾翻译"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -96,7 +100,7 @@ exe = EXE(
     contents_directory="runtime",  # merge _internal into runtime/
 )
 
-# Create a folder distribution (portable)
+# Collect all dependencies alongside the exe (one portable folder)
 coll = COLLECT(
     exe,
     a.binaries,
@@ -104,5 +108,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name="DragonTranslator",
+    name=_TARGET_DIR,
 )
