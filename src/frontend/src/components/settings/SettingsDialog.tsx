@@ -322,6 +322,79 @@ export default function SettingsDialog({ onClose, defaultTab }: SettingsDialogPr
                     </div>
                   </div>
 
+                  <div>
+                    <label className="block text-xs text-lexi-text-muted mb-1">
+                      字体
+                    </label>
+                    <select
+                      value={settings.fontFamily || "Inter"}
+                      onChange={(e) => updateSettings({ fontFamily: e.target.value })}
+                      className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                    >
+                      <option value="Inter">Inter (默认)</option>
+                      <option value="Noto Sans SC">Noto Sans SC (思源黑体)</option>
+                      <option value="LXGW WenKai">LXGW WenKai (霞鹜文楷)</option>
+                      <option value="Microsoft YaHei">微软雅黑</option>
+                      <option value="Source Han Serif SC">Source Han Serif (思源宋体)</option>
+                      <option value="JetBrains Mono, Inter">JetBrains Mono (等宽)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-lexi-text-muted mb-1">
+                      粗细
+                    </label>
+                    <select
+                      value={settings.fontWeight ?? 400}
+                      onChange={(e) => updateSettings({ fontWeight: Number(e.target.value) })}
+                      className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                    >
+                      <option value={300}>300 — 细体 (Light)</option>
+                      <option value={400}>400 — 常规 (Regular)</option>
+                      <option value={500}>500 — 中等 (Medium)</option>
+                      <option value={600}>600 — 半粗 (Semibold)</option>
+                      <option value={700}>700 — 粗体 (Bold)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-lexi-text-muted mb-1">
+                      行高 ({settings.lineHeight ?? 1.6})
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-lexi-text-muted w-5">1.2</span>
+                      <input
+                        type="range"
+                        min="1.2"
+                        max="2.5"
+                        step="0.1"
+                        value={settings.lineHeight ?? 1.6}
+                        onChange={(e) => updateSettings({ lineHeight: parseFloat(e.target.value) })}
+                        className="flex-1 accent-lexi-accent cursor-pointer"
+                      />
+                      <span className="text-[10px] text-lexi-text-muted w-5">2.5</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-lexi-text-muted mb-1">
+                      字间距 ({settings.letterSpacing ?? 0}px)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-lexi-text-muted w-5">0</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="4"
+                        step="0.5"
+                        value={settings.letterSpacing ?? 0}
+                        onChange={(e) => updateSettings({ letterSpacing: parseFloat(e.target.value) })}
+                        className="flex-1 accent-lexi-accent cursor-pointer"
+                      />
+                      <span className="text-[10px] text-lexi-text-muted w-5">4</span>
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-sm text-lexi-text">关闭时最小化到托盘</span>

@@ -63,7 +63,10 @@ html {
 }
 
 body {
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--lexi-font-family, "Inter", "Segoe UI", system-ui, -apple-system, sans-serif);
+  font-weight: var(--lexi-font-weight, 400);
+  line-height: var(--lexi-line-height, 1.6);
+  letter-spacing: var(--lexi-letter-spacing, 0);
   background-color: var(--color-lexi-bg);
   color: var(--color-lexi-text);
   -webkit-font-smoothing: antialiased;

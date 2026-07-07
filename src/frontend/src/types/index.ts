@@ -40,6 +40,10 @@ export interface AppSettings {
   // Theme
   theme: "dark" | "light" | "geek";
   fontSize: number; // px
+  fontFamily?: string; // CSS font-family, default "Inter"
+  fontWeight?: number; // 300–700, default 400
+  lineHeight?: number; // 1.2–2.5, default 1.6
+  letterSpacing?: number; // 0–4 px, default 0
   // Layout
   inputPosition: "top" | "bottom";
   cardDisplay: "flat" | "accordion" | "tabs" | "split";
@@ -146,6 +150,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   theme: "dark",
   fontSize: 14,
+  fontFamily: "Inter",
+  fontWeight: 400,
+  lineHeight: 1.6,
+  letterSpacing: 0,
   inputPosition: "top",
   cardDisplay: "flat",
   closeToTray: true,

@@ -48,15 +48,23 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // ---- Sync theme & font-size to <html> ----
+  // ---- Sync theme & font to <html> ----
   useEffect(() => {
     const unsub = useConfigStore.subscribe((s) => {
       document.documentElement.setAttribute("data-theme", s.settings.theme);
       document.documentElement.style.setProperty("--lexi-font-size", `${s.settings.fontSize}px`);
+      document.documentElement.style.setProperty("--lexi-font-family", s.settings.fontFamily || "Inter");
+      document.documentElement.style.setProperty("--lexi-font-weight", String(s.settings.fontWeight ?? 400));
+      document.documentElement.style.setProperty("--lexi-line-height", String(s.settings.lineHeight ?? 1.6));
+      document.documentElement.style.setProperty("--lexi-letter-spacing", `${s.settings.letterSpacing ?? 0}px`);
     });
     const s = useConfigStore.getState().settings;
     document.documentElement.setAttribute("data-theme", s.theme);
     document.documentElement.style.setProperty("--lexi-font-size", `${s.fontSize}px`);
+    document.documentElement.style.setProperty("--lexi-font-family", s.fontFamily || "Inter");
+    document.documentElement.style.setProperty("--lexi-font-weight", String(s.fontWeight ?? 400));
+    document.documentElement.style.setProperty("--lexi-line-height", String(s.lineHeight ?? 1.6));
+    document.documentElement.style.setProperty("--lexi-letter-spacing", `${s.letterSpacing ?? 0}px`);
     return unsub;
   }, []);
 
