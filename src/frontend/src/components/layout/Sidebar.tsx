@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   History, Settings as SettingsIcon, ChevronLeft, ChevronRight,
-  Plus, Trash2, Edit3,
+  Plus, Trash2, Edit3, Copy,
 } from "lucide-react";
 import { useConfigStore } from "../../stores/configStore";
 
@@ -24,6 +24,7 @@ export default function Sidebar({
   const updateSettings = useConfigStore((s) => s.updateSettings);
 
   const [compact, setCompact] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [width, setWidth] = useState(220);
   const dragging = useRef(false);
   const MIN_W = compact ? 48 : 160;
@@ -64,10 +65,25 @@ export default function Sidebar({
     onEditStyle(id);
   };
 
-  const deleteStyle = (id: string) => {
-    const newStyles = polishStyles.filter((s) => s.id !== id);
-    const newActiveId = activeStyleId === id ? null : activeStyleId;
+  const copyStyle = (id: string) => {
+    const src = polishStyles.find((s) => s.id === id);
+    if (!src) return;
+    const newId = `style-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const copy = { ...src, id: newId, name: `${src.name} (副本)` };
+    updateSettings({ polishStyles: [...polishStyles, copy] });
+    onEditStyle(newId);
+  };
+
+  const confirmDeleteStyle = (id: string) => {
+    setConfirmDelete(id);
+  };
+
+  const doDelete = () => {
+    if (!confirmDelete) return;
+    const newStyles = polishStyles.filter((s) => s.id !== confirmDelete);
+    const newActiveId = activeStyleId === confirmDelete ? null : activeStyleId;
     updateSettings({ polishStyles: newStyles, activeStyleId: newActiveId });
+    setConfirmDelete(null);
   };
 
   const isDirect = activeStyleId === null;
@@ -133,7 +149,10 @@ export default function Sidebar({
                 <button onClick={() => onEditStyle(s.id)} className="p-1 rounded hover:bg-lexi-hover text-lexi-text-muted">
                   <Edit3 size={12} />
                 </button>
-                <button onClick={() => deleteStyle(s.id)} className="p-1 rounded hover:bg-red-400/10 text-lexi-text-muted hover:text-red-400">
+                <button onClick={() => copyStyle(s.id)} className="p-1 rounded hover:bg-lexi-hover text-lexi-text-muted">
+                  <Copy size={12} />
+                </button>
+                <button onClick={() => confirmDeleteStyle(s.id)} className="p-1 rounded hover:bg-red-400/10 text-lexi-text-muted hover:text-red-400">
                   <Trash2 size={12} />
                 </button>
               </div>
@@ -151,6 +170,32 @@ export default function Sidebar({
       </div>
       <div className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-lexi-accent/30"
         onMouseDown={() => { dragging.current = true; }} />
+
+      {/* Confirm delete dialog */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setConfirmDelete(null)}>
+          <div
+            className="bg-lexi-card border border-lexi-border rounded-xl shadow-xl"
+            style={{ padding: 32, margin: 24, maxWidth: 448, width: "100%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-medium text-lexi-text" style={{ marginBottom: 12 }}>确认删除</p>
+            <p className="text-sm text-lexi-text-muted" style={{ marginBottom: 24 }}>
+              确定要删除「{polishStyles.find((s) => s.id === confirmDelete)?.name ?? "此风格"}」吗？此操作不可撤销。
+            </p>
+            <div className="flex justify-end" style={{ gap: 12 }}>
+              <button onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 rounded-lg text-sm text-lexi-text-muted hover:bg-lexi-hover transition-colors">
+                取消
+              </button>
+              <button onClick={doDelete}
+                className="px-4 py-2 rounded-lg text-sm bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
