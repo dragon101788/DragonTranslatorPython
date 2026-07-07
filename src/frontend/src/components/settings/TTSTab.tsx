@@ -30,7 +30,7 @@ const AVAILABLE_VOICES: {
   url_path: string;
 }[] = [
   { lang: "zh_CN", label: "中文 (女声 huayan)", voice: "huayan", quality: "medium", url_path: "zh/zh_CN/huayan/medium/zh_CN-huayan-medium" },
-  { lang: "zh_CN", label: "中文 (女声 huayan Low)", voice: "huayan", quality: "low", url_path: "zh/zh_CN/huayan/low/zh_CN-huayan-low" },
+  { lang: "zh_CN", label: "中文 (女声 huayan X-Low)", voice: "huayan", quality: "x_low", url_path: "zh/zh_CN/huayan/x_low/zh_CN-huayan-x_low" },
   { lang: "en_US", label: "英语 (女声 lessac)", voice: "lessac", quality: "medium", url_path: "en/en_US/lessac/medium/en_US-lessac-medium" },
   { lang: "en_US", label: "英语 (男声 ryan)", voice: "ryan", quality: "medium", url_path: "en/en_US/ryan/medium/en_US-ryan-medium" },
   { lang: "en_US", label: "英语 (女声 amy)", voice: "amy", quality: "medium", url_path: "en/en_US/amy/medium/en_US-amy-medium" },
@@ -60,6 +60,13 @@ function fmtMB(mb: number): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+function formatSize(sizeBytes: number): string {
+  if (sizeBytes >= 1e9) return `${(sizeBytes / 1e9).toFixed(1)} GB`;
+  if (sizeBytes >= 1e6) return `${(sizeBytes / 1e6).toFixed(0)} MB`;
+  if (sizeBytes >= 1e3) return `${(sizeBytes / 1e3).toFixed(0)} KB`;
+  return `${sizeBytes} B`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -72,9 +79,10 @@ export default function TTSTab() {
   const [voicesDir, setVoicesDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [mirrorIdx, setMirrorIdx] = useState(0);
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
   const [dlError, setDlError] = useState<string | null>(null);
   const [dlSuccess, setDlSuccess] = useState<string | null>(null);
+  const [progressMap, setProgressMap] = useState<Record<string, { downloaded: number; total: number }>>({});
 
   
 
@@ -95,36 +103,93 @@ export default function TTSTab() {
 
   useEffect(() => { refreshVoices(); }, [refreshVoices]);
 
-  // ---- Download voice (direct to piper-voices/) ----
+  // ---- Progress event listeners ----
+  useEffect(() => {
+    let unlistenProgress: (() => void) | undefined;
+    let unlistenComplete: (() => void) | undefined;
+    let unlistenError: (() => void) | undefined;
+    import("../../services/bridge").then(({ listen }) => {
+      listen<{ voice_name: string; downloaded: number; total: number }>(
+        "voice_download_progress",
+        (e) => {
+          console.log("[TTS] progress:", e.payload.voice_name, e.payload.downloaded, "/", e.payload.total);
+          setProgressMap((prev) => ({
+            ...prev,
+            [e.payload.voice_name]: { downloaded: e.payload.downloaded, total: e.payload.total },
+          }));
+        }
+      ).then((fn) => { unlistenProgress = fn; });
+      listen<{ voice_name: string; size_bytes: number }>(
+        "voice_download_complete",
+        (e) => {
+          const voiceName = e.payload.voice_name;
+          console.log("[TTS] complete:", voiceName, e.payload.size_bytes);
+          setDownloading((prev) => {
+            const next = { ...prev };
+            delete next[voiceName];
+            return next;
+          });
+          setProgressMap((prev) => {
+            const next = { ...prev };
+            delete next[voiceName];
+            return next;
+          });
+          setDlSuccess(`已安装: ${voiceName}`);
+          setTimeout(() => setDlSuccess(null), 5000);
+          refreshVoices();
+        }
+      ).then((fn) => { unlistenComplete = fn; });
+      listen<{ voice_name: string; error: string }>(
+        "voice_download_error",
+        (e) => {
+          const voiceName = e.payload.voice_name;
+          console.error("[TTS] error:", voiceName, e.payload.error);
+          setDownloading((prev) => {
+            const next = { ...prev };
+            delete next[voiceName];
+            return next;
+          });
+          setProgressMap((prev) => {
+            const next = { ...prev };
+            delete next[voiceName];
+            return next;
+          });
+          setDlError(`下载失败: ${e.payload.error}`);
+        }
+      ).then((fn) => { unlistenError = fn; });
+    });
+    return () => {
+      unlistenProgress?.();
+      unlistenComplete?.();
+      unlistenError?.();
+    };
+  }, []); // eslint-disable-line
+
+  // ---- Download voice ----
   const downloadVoice = async (voice: (typeof AVAILABLE_VOICES)[0]) => {
-    if (downloading) return;
-    setDownloading(voice.label);
+    const voiceName = voice.url_path.split("/").pop()!;
+    if (downloading[voiceName]) return;
+    setDownloading((prev) => ({ ...prev, [voiceName]: true }));
     setDlError(null);
     setDlSuccess(null);
+    setProgressMap((prev) => { const next = { ...prev }; delete next[voiceName]; return next; });
 
     try {
       const { invoke } = await import("../../services/bridge");
       const base = BASE_URLS[mirrorIdx].base;
-      const voiceName = voice.url_path.split("/").pop()!;
+      const urlBase = `${base}/${voice.url_path}`;
 
-      // Download .onnx
-      await invoke("tts_download_voice", {
-        url: `${base}/${voice.url_path}.onnx`,
-        filename: `${voiceName}.onnx`,
+      console.log("[TTS] downloadVoice start:", voiceName, "url_base:", urlBase);
+      const result = await invoke<string>("tts_download_voice", {
+        url_base: urlBase,
+        voice_name: voiceName,
       });
-
-      // Download .onnx.json
-      await invoke("tts_download_voice", {
-        url: `${base}/${voice.url_path}.onnx.json`,
-        filename: `${voiceName}.onnx.json`,
-      });
-
-      setDlSuccess(voice.label);
-      setDownloading(null);
-      refreshVoices(); // refresh list immediately
+      console.log("[TTS] downloadVoice invoke returned:", result);
     } catch (e: any) {
+      console.error("[TTS] downloadVoice invoke ERROR:", e);
       setDlError(typeof e === "string" ? e : e?.message || String(e));
-      setDownloading(null);
+      setDownloading((prev) => { const next = { ...prev }; delete next[voiceName]; return next; });
+      setProgressMap((prev) => { const next = { ...prev }; delete next[voiceName]; return next; });
     }
   };
 
@@ -310,22 +375,40 @@ export default function TTSTab() {
           <div className="space-y-1 max-h-48 overflow-y-auto mb-4">
             {AVAILABLE_VOICES.map((v) => {
               const installed = isVoiceInstalled(v);
-              const isDownloading = downloading === v.label;
+              const voiceName = v.url_path.split("/").pop()!;
+              const isDownloading = !!downloading[voiceName];
+              const prog = progressMap[voiceName];
+              const anyDownloading = Object.keys(downloading).length > 0;
               return (
-                <div key={v.url_path} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-lexi-bg/30 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {installed ? <Check size={12} className="text-green-400 flex-shrink-0" />
-                      : <Download size={12} className="text-lexi-text-muted flex-shrink-0" />}
-                    <span className={`truncate ${installed ? "text-lexi-text-muted" : "text-lexi-text"}`}>{v.label}</span>
+                <div key={v.url_path} className="flex flex-col px-2.5 py-1.5 rounded-lg bg-lexi-bg/30 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {installed ? <Check size={12} className="text-green-400 flex-shrink-0" />
+                        : <Download size={12} className="text-lexi-text-muted flex-shrink-0" />}
+                      <span className={`truncate ${installed ? "text-lexi-text-muted" : "text-lexi-text"}`}>{v.label}</span>
+                    </div>
+                    <button
+                      onClick={() => downloadVoice(v)}
+                      disabled={installed || isDownloading}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0 ml-2 ${installed ? "text-green-400/50 cursor-default"
+                        : isDownloading ? "text-lexi-accent bg-lexi-accent/10" : anyDownloading ? "text-lexi-text-muted/50 cursor-default" : "text-lexi-accent-hover hover:bg-lexi-accent/10"}`}
+                    >
+                      {installed ? "已安装" : isDownloading ? <Loader2 size={10} className="animate-spin" /> : "下载"}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => downloadVoice(v)}
-                    disabled={installed || !!downloading}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex-shrink-0 ml-2 ${installed ? "text-green-400/50 cursor-default"
-                      : isDownloading ? "text-lexi-accent bg-lexi-accent/10" : "text-lexi-accent-hover hover:bg-lexi-accent/10"}`}
-                  >
-                    {installed ? "已安装" : isDownloading ? <Loader2 size={10} className="animate-spin" /> : "下载"}
-                  </button>
+                  {isDownloading && prog && prog.total > 0 && (
+                    <div className="mt-1.5 ml-5">
+                      <div className="h-1.5 bg-lexi-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-lexi-accent rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((prog.downloaded / prog.total) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-lexi-text-muted mt-0.5">
+                        {formatSize(prog.downloaded)} / {formatSize(prog.total)} ({Math.round((prog.downloaded / prog.total) * 100)}%)
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

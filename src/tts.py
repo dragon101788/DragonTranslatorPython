@@ -165,8 +165,16 @@ def _read_sample_rate(model_path: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _scan_voices_dir(vdir: str, voices: list[dict[str, Any]]) -> None:
-    """Scan one voice directory and append voice info to the list."""
+def _scan_voices_dir(vdir: str, voices: list[dict[str, Any]], seen: set[str] | None = None) -> None:
+    """Scan one voice directory and append voice info to the list.
+
+    Args:
+        vdir: Voice directory path.
+        voices: List to append voice dicts to.
+        seen: Optional set of base names already seen; used for dedup across
+              multiple directories (e.g. runtime + models). Voice names in
+              this set are skipped.
+    """
     try:
         entries = os.scandir(vdir)
     except OSError:
@@ -181,6 +189,11 @@ def _scan_voices_dir(vdir: str, voices: list[dict[str, Any]]) -> None:
         size_bytes = entry.stat().st_size
         size_mb = round(size_bytes / (1024 * 1024), 1)
         base_name = name[:-5]  # strip .onnx
+
+        if seen is not None:
+            if base_name in seen:
+                continue
+            seen.add(base_name)
 
         json_path = f"{model_path}.json"
         lang = "?"
@@ -208,8 +221,9 @@ def _scan_voices_dir(vdir: str, voices: list[dict[str, Any]]) -> None:
 def list_voices() -> list[dict[str, Any]]:
     """Scan all piper-voices/ directories and return installed voice metadata."""
     voices: list[dict[str, Any]] = []
-    _scan_voices_dir(voices_dir(), voices)           # base voices (shipped)
-    _scan_voices_dir(_voices_dir_models(), voices)   # user-downloaded
+    seen: set[str] = set()
+    _scan_voices_dir(voices_dir(), voices, seen)           # base voices (shipped)
+    _scan_voices_dir(_voices_dir_models(), voices, seen)   # user-downloaded
     voices.sort(key=lambda v: (v["lang"], v["name"]))
     return voices
 
@@ -417,37 +431,119 @@ def open_voices_dir() -> None:
     subprocess.Popen(["explorer", vdir])
 
 
-def download_voice(url: str, filename: str) -> str:
-    """Download a voice model (.onnx) from a URL.
+def download_voice(
+    url_base: str,
+    voice_name: str,
+    on_progress: Optional[Callable[[dict], None]] = None,
+    on_complete: Optional[Callable[[dict], None]] = None,
+) -> str:
+    """Download a Piper voice model (.onnx + .onnx.json).
+
+    Downloads the tiny .onnx.json metadata first, then streams the .onnx
+    model file with progress callbacks.  Uses .tmp + atomic rename.
 
     Args:
-        url: Download URL
-        filename: Output filename (e.g. "zh_CN-huayan-medium.onnx")
+        url_base: Base URL for the voice files (without extension),
+                  e.g. "https://.../zh/zh_CN/huayan/medium/zh_CN-huayan-medium"
+        voice_name: Voice name, e.g. "zh_CN-huayan-medium"
+        on_progress: Callback({"voice_name", "downloaded", "total"})
+        on_complete: Callback({"voice_name", "size_bytes"})
 
     Returns:
         Status message
     """
+    import ssl
     import urllib.request
+    import urllib.error
 
-    vdir = _voices_dir_models()  # user downloads go to models/
-    dest = os.path.join(vdir, filename)
+    vdir = _voices_dir_models()  # user downloads go to models/piper-voices/
+    onnx_filename = f"{voice_name}.onnx"
+    json_filename = f"{voice_name}.onnx.json"
 
-    if os.path.exists(dest):
-        return f"{filename} already exists"
+    onnx_dest = os.path.join(vdir, onnx_filename)
+    json_dest = os.path.join(vdir, json_filename)
 
-    print(f"[TTS] download: {url} -> {dest}")
+    if os.path.exists(onnx_dest):
+        return f"{voice_name} 已存在"
 
-    req = urllib.request.Request(url, headers={"User-Agent": "DragonTranslator/0.7.0"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = resp.read()
+    os.makedirs(vdir, exist_ok=True)
 
-    os.makedirs(os.path.dirname(dest) or vdir, exist_ok=True)
-    with open(dest, "wb") as f:
-        f.write(data)
+    ssl_ctx = ssl.create_default_context()
+    headers = {"User-Agent": "DragonTranslator/0.7.0"}
 
-    size_mb = len(data) / (1024 * 1024)
-    print(f"[TTS] download: saved {filename} ({len(data)} bytes, {size_mb:.1f} MB)")
-    return f"Downloaded {filename} ({size_mb:.1f} MB)"
+    # 1. Download .onnx.json (tiny metadata, non-fatal if 404)
+    if not os.path.exists(json_dest):
+        json_url = f"{url_base}.onnx.json"
+        print(f"[TTS] download json: {json_url} -> {json_dest}")
+        try:
+            req = urllib.request.Request(json_url, headers=headers)
+            with urllib.request.urlopen(req, context=ssl_ctx, timeout=30) as resp:
+                data = resp.read()
+            with open(json_dest, "wb") as f:
+                f.write(data)
+            print(f"[TTS] saved {json_filename} ({len(data)} bytes)")
+        except urllib.error.HTTPError as e:
+            print(f"[TTS] json download skipped (HTTP {e.code}), will generate minimal metadata")
+        except urllib.error.URLError as e:
+            print(f"[TTS] json download skipped (network error: {e}), will generate minimal metadata")
+
+    # 2. Download .onnx with streaming + progress
+    onnx_url = f"{url_base}.onnx"
+    onnx_tmp = onnx_dest + ".tmp"
+    print(f"[TTS] download onnx: {onnx_url} -> {onnx_dest}")
+
+    try:
+        req = urllib.request.Request(onnx_url, headers=headers)
+        with urllib.request.urlopen(req, context=ssl_ctx, timeout=120) as resp:
+            total = int(resp.headers.get("Content-Length", 0))
+            print(f"[TTS] Content-Length: {total} bytes ({total / (1024*1024):.1f} MB)")
+
+            downloaded = 0
+            last_emit = 0
+
+            with open(onnx_tmp, "wb") as tmpf:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    tmpf.write(chunk)
+                    downloaded += len(chunk)
+
+                    # Emit progress ~every 1% (or every 5MB if total unknown)
+                    emit_threshold = max(total // 100, 5 * 1024 * 1024) if total > 0 else 5 * 1024 * 1024
+                    if on_progress and downloaded - last_emit >= emit_threshold:
+                        last_emit = downloaded
+                        on_progress({
+                            "voice_name": voice_name,
+                            "downloaded": downloaded,
+                            "total": total,
+                        })
+
+        size_bytes = os.path.getsize(onnx_tmp)
+        size_mb = size_bytes / (1024 * 1024)
+        print(f"[TTS] download complete, moving {onnx_tmp} -> {onnx_dest}")
+        os.replace(onnx_tmp, onnx_dest)
+        print(f"[TTS] saved {onnx_filename} ({size_mb:.1f} MB)")
+
+        # Generate minimal .onnx.json if not already downloaded
+        if not os.path.exists(json_dest):
+            _write_minimal_voice_json(json_dest, voice_name)
+            print(f"[TTS] generated minimal metadata: {json_dest}")
+
+        if on_complete:
+            on_complete({
+                "voice_name": voice_name,
+                "size_bytes": size_bytes,
+            })
+
+        return f"下载完成 {voice_name} ({size_mb:.1f} MB)"
+
+    except urllib.error.URLError as e:
+        _cleanup_voice_tmp(onnx_tmp)
+        raise RuntimeError(f"下载 {onnx_filename} 失败: {e}") from e
+    except Exception as e:
+        _cleanup_voice_tmp(onnx_tmp)
+        raise
 
 
 def delete_voice(name: str) -> str:
@@ -481,9 +577,36 @@ def delete_voice(name: str) -> str:
         raise FileNotFoundError(f"Voice not found: {name}")
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _cleanup_voice_tmp(path: str) -> None:
+    """Remove a .tmp voice file if it exists."""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        pass
+
+
+def _write_minimal_voice_json(json_path: str, voice_name: str) -> None:
+    """Write a minimal .onnx.json config when the original can't be downloaded.
+
+    Parses language code and quality from the voice name (e.g. zh_CN-huayan-low).
+    Falls back to sample_rate=22050 (Piper default for medium/low quality voices).
+    """
+    # Parse lang code: "zh_CN-huayan-low" -> lang="zh_CN", quality="low"
+    parts = voice_name.rsplit("-", 1)
+    quality = parts[1] if len(parts) == 2 and parts[1] in (
+        "x_low", "low", "medium", "high",
+    ) else "medium"
+    lang_parts = parts[0].split("-", 1)
+    lang_code = lang_parts[0] if lang_parts else "?"
+
+    config = {
+        "language": {"code": lang_code},
+        "quality": quality,
+        "audio": {"sample_rate": 22050},
+    }
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
 
 
 def _stop_inner() -> None:

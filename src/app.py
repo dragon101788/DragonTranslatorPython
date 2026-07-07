@@ -540,21 +540,38 @@ class JsApi:
         from src.tts import open_voices_dir
 
     def tts_download_voice(self, args: dict) -> str:
-        """Start voice download in background thread (non-blocking)."""
+        """Start voice download in background thread.
+
+        Returns immediately; progress and completion are delivered via
+        poll_events (voice_download_progress / voice_download_complete).
+        Downloads both .onnx.json (instant) and .onnx (streaming).
+        """
         from src.tts import download_voice
 
-        url = args.get("url", "")
-        filename = args.get("filename", "")
+        url_base = args.get("url_base", "")
+        voice_name = args.get("voice_name", "")
+
+        print(f"[Bridge] tts_download_voice CALLED url_base={url_base[:80]}... voice_name={voice_name}")
+        logger.log(1, "app", f"tts_download_voice: voice_name={voice_name} url_base={url_base[:100]}")
 
         def _bg_download() -> None:
             try:
-                result = download_voice(url=url, filename=filename)
+                print(f"[Bridge] _bg_download THREAD STARTED for {voice_name}")
+                result = download_voice(
+                    url_base=url_base,
+                    voice_name=voice_name,
+                    on_progress=lambda p: self.emit("voice_download_progress", p),
+                    on_complete=lambda p: self.emit("voice_download_complete", p),
+                )
+                print(f"[Bridge] _bg_download SUCCESS: {result}")
                 logger.log(1, "app", f"Voice download: {result}")
             except Exception as e:
+                print(f"[Bridge] _bg_download ERROR: {e}")
                 logger.log(3, "app", f"Voice download failed: {e}")
+                self.emit("voice_download_error", {"voice_name": voice_name, "error": str(e)})
 
         threading.Thread(target=_bg_download, daemon=True, name="voice-download").start()
-        return f"开始下载 {filename}"
+        return f"开始下载 {voice_name}"
 
     def tts_delete_voice(self, name: Any = "") -> str:
         from src.tts import delete_voice
