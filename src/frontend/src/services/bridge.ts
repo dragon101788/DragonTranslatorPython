@@ -33,7 +33,7 @@ async function waitForPywebviewApi(timeoutMs = 8000): Promise<any> {
         if (sentinel) {
           return api;
         }
-        await new Promise((r) => setTimeout(r, 30));
+        await new Promise((r) => setTimeout(r, 30));provider
       }
       // Sentinel never appeared — return whatever we have
       return api;

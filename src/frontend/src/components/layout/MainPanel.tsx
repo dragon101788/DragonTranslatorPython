@@ -154,7 +154,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
       const start = Date.now();
       const card: CardData = {
         cardId, providerId: provider.id, providerName: provider.name,
-        providerIcon: "cloud", model: provider.models[0] || "auto",
+        providerIcon: "cloud", model: provider.activeModel || provider.models[0] || "auto",
         result: "", error: null, translating: true, latency: 0,
       };
       setCards((prev) => [...prev, card]);
@@ -168,8 +168,11 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           const { LLMAdapter } = await import("../../services/llm/adapter");
           const adapter = new LLMAdapter(provider);
           await adapter.chatStream(
-            { model: provider.models[0] || "gpt-4o-mini", messages: [{ role: "user", content: userMsg }],
-              temperature: activeStyle?.temperature ?? 0.7, max_tokens: activeStyle?.maxTokens ?? 4096 },
+            { model: provider.activeModel || provider.models[0] || "gpt-4o-mini",
+              messages: [{ role: "user", content: userMsg }],
+              temperature: provider.temperature ?? activeStyle?.temperature ?? 0.7,
+              max_tokens: provider.maxTokens ?? activeStyle?.maxTokens ?? 4096,
+              reasoning_effort: provider.reasoningEffort },
             (delta: string) => {
               text2 += delta;
               setCards((prev) => prev.map((c) => c.cardId === cardId
@@ -180,7 +183,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           setCards((prev) => prev.map((c) => c.cardId === cardId
             ? { ...c, translating: false, latency: Date.now() - start } : c));
           logger.info(`[Polish:${provider.id}] 完成 chars=${text2.length} latency=${Date.now() - start}ms\n  result: ${text2.slice(0, 300)}`);
-          useHistoryStore.getState().addRecord(makeRecord(text, text2, provider.name, provider.models[0] || "auto", Date.now() - start));
+          useHistoryStore.getState().addRecord(makeRecord(text, text2, provider.name, provider.activeModel || provider.models[0] || "auto", Date.now() - start));
         } catch (e: any) {
           if (e?.name !== "AbortError") {
             setCards((prev) => prev.map((c) => c.cardId === cardId

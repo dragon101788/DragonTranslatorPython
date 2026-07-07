@@ -9,6 +9,7 @@ export interface ChatCompletionRequest {
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
+  reasoning_effort?: "low" | "medium" | "high";
 }
 
 export interface ChatCompletionResponse {

@@ -7,6 +7,11 @@ export interface LLMProvider {
   models: string[];
   isDefault: boolean;
   createdAt: number;
+  // --- Advanced parameters ---
+  activeModel?: string;                         // selected model from models[] for translation
+  temperature?: number;                         // 0–2, default 0.7
+  maxTokens?: number;                           // max output tokens, default 4096
+  reasoningEffort?: "low" | "medium" | "high";  // DeepSeek/Claude/OpenAI o-series
 }
 
 // ============== Translation Record ==============

@@ -302,6 +302,93 @@ function ProviderCard({ provider, onUpdate, onDelete, canDelete }: ProviderCardP
             )}
           </div>
 
+          {/* Advanced parameters (non-local providers only) */}
+          {!isLocal && provider.models.length > 0 && (
+            <div className="border-t border-lexi-border/50 pt-3 space-y-3">
+              <span className="text-[11px] text-lexi-text-muted uppercase tracking-wide">
+                高级参数
+              </span>
+
+              {/* Active model */}
+              <div>
+                <label className="block text-[11px] text-lexi-text-muted mb-1">
+                  选用模型
+                </label>
+                <select
+                  value={provider.activeModel || provider.models[0] || ""}
+                  onChange={(e) => onUpdate({ activeModel: e.target.value })}
+                  className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                >
+                  {provider.models.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Temperature */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-lexi-text-muted">
+                    温度 ({(provider.temperature ?? 0.7).toFixed(1)})
+                  </label>
+                  <button
+                    onClick={() => onUpdate({ temperature: undefined })}
+                    className="text-[10px] text-lexi-text-muted/50 hover:text-lexi-text-muted transition-colors"
+                  >
+                    重置
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-lexi-text-muted w-5">0</span>
+                  <input
+                    type="range"
+                    min="0" max="2" step="0.1"
+                    value={provider.temperature ?? 0.7}
+                    onChange={(e) => onUpdate({ temperature: parseFloat(e.target.value) })}
+                    className="flex-1 accent-lexi-accent cursor-pointer"
+                  />
+                  <span className="text-[10px] text-lexi-text-muted w-5">2</span>
+                </div>
+              </div>
+
+              {/* Max tokens */}
+              <div>
+                <label className="block text-[11px] text-lexi-text-muted mb-1">
+                  最大输出长度
+                </label>
+                <select
+                  value={provider.maxTokens ?? 4096}
+                  onChange={(e) => onUpdate({ maxTokens: parseInt(e.target.value) })}
+                  className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                >
+                  {[512, 1024, 2048, 4096, 8192, 16384].map((v) => (
+                    <option key={v} value={v}>{v} tokens</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reasoning effort */}
+              <div>
+                <label className="block text-[11px] text-lexi-text-muted mb-1">
+                  思考深度 (reasoning_effort)
+                </label>
+                <select
+                  value={provider.reasoningEffort || ""}
+                  onChange={(e) => onUpdate({ reasoningEffort: (e.target.value || undefined) as LLMProvider["reasoningEffort"] })}
+                  className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+                >
+                  <option value="">关闭</option>
+                  <option value="low">Low — 快速推理</option>
+                  <option value="medium">Medium — 平衡 (推荐)</option>
+                  <option value="high">High — 深度思考</option>
+                </select>
+                <p className="text-[10px] text-lexi-text-muted/50 mt-0.5">
+                  仅 DeepSeek / Claude / OpenAI o-series 等支持此参数的 API 生效
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Status message */}
           {statusMsg && (
             <div
