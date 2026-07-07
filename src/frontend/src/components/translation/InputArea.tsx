@@ -131,7 +131,7 @@ export default function InputArea({
       />
 
       {/* Submit / Stop buttons */}
-      <div className="flex items-center justify-between px-3 py-2 gap-2 select-none">
+      <div className="flex items-center justify-between px-4 py-3 gap-2 select-none">
         <div className="text-xs text-lexi-text-muted whitespace-nowrap">
           {translating && "流式输出中..."}
         </div>
@@ -139,7 +139,7 @@ export default function InputArea({
           {translating ? (
             <button
               onClick={onStop}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium transition-all whitespace-nowrap min-w-[90px] justify-center"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium transition-all whitespace-nowrap min-w-[96px] justify-center"
             >
               <StopCircle size={14} />
               <span>停止</span>
@@ -148,7 +148,7 @@ export default function InputArea({
             <button
               onClick={handleSubmit}
               disabled={!text.trim()}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-lexi-accent hover:bg-lexi-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-all whitespace-nowrap min-w-[90px] justify-center"
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-lexi-accent hover:bg-lexi-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-all whitespace-nowrap min-w-[96px] justify-center"
             >
               <Send size={15} />
               <span>翻译</span>
