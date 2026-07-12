@@ -166,7 +166,16 @@ function ProviderCard({ provider, onUpdate, onDelete, canDelete }: ProviderCardP
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+        <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="p-1 rounded hover:bg-red-500/10 text-lexi-text-muted/50 hover:text-red-400 transition-colors"
+              title="删除"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
           {expanded ? <ChevronDown size={14} className="text-lexi-text-muted" /> : <ChevronRight size={14} className="text-lexi-text-muted" />}
         </div>
       </button>
@@ -271,16 +280,6 @@ function ProviderCard({ provider, onUpdate, onDelete, canDelete }: ProviderCardP
               {testing ? <Loader2 size={12} className="animate-spin" /> : <FlaskConical size={12} />}
               <span>测试连接</span>
             </button>
-
-            {canDelete && (
-              <button
-                onClick={onDelete}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/5 hover:bg-red-500/10 text-red-400/70 hover:text-red-400 text-xs transition-all"
-              >
-                <Trash2 size={12} />
-                <span>删除</span>
-              </button>
-            )}
           </div>
 
           {/* Advanced parameters (non-local providers only) */}

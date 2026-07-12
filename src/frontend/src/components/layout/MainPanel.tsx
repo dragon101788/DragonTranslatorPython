@@ -98,6 +98,14 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
 
   // ---- Translate ----
   const handleTranslate = useCallback(async (text: string) => {
+    // Read latest config on every click (not from stale render closure)
+    const state = useConfigStore.getState();
+    const currentProviders = state.providers;
+    const currentSettings = state.settings;
+    const currentActiveStyle = currentSettings.activeStyleId
+      ? currentSettings.polishStyles.find((s) => s.id === currentSettings.activeStyleId) || null
+      : null;
+
     setIsTranslating(true);
     setCards([]);
 
@@ -134,22 +142,22 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     }
 
     // Stage 2: LLM polish — all providers in parallel
-    const hasLLM = !!(activeStyle?.prompt && providers.length > 0);
+    const hasLLM = !!(currentActiveStyle?.prompt && currentProviders.length > 0);
     if (!hasLLM) {
       setIsTranslating(false);
       return;
     }
 
     const targetLang = /[一-鿿㐀-䶿]/.test(bergamotResult) ? "中文" : "英文";
-    const userMsg = (activeStyle?.prompt || "")
+    const userMsg = (currentActiveStyle?.prompt || "")
       .replace("{source}", text)
       .replace("{bergamot}", bergamotResult)
       .replace("{targetLang}", targetLang);
 
     const controllers: AbortController[] = [];
-    let remaining = providers.length;
+    let remaining = currentProviders.length;
 
-    providers.forEach((provider) => {
+    currentProviders.forEach((provider) => {
       const cardId = `polish-${provider.id}`;
       const start = Date.now();
       const card: CardData = {
@@ -171,8 +179,8 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           await adapter.chatStream(
             { model: provider.activeModel || provider.models[0] || "gpt-4o-mini",
               messages: [{ role: "user", content: userMsg }],
-              temperature: provider.temperature ?? activeStyle?.temperature ?? 0.7,
-              max_tokens: provider.maxTokens ?? activeStyle?.maxTokens ?? 4096,
+              temperature: provider.temperature ?? currentActiveStyle?.temperature ?? 0.7,
+              max_tokens: provider.maxTokens ?? currentActiveStyle?.maxTokens ?? 4096,
               reasoning_effort: provider.reasoningEffort },
             (delta: string) => {
               if (isFirstContent) {
@@ -211,7 +219,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     });
 
     abortRefs.current = controllers;
-  }, [activeStyle]);
+  }, []);  // reads fresh config via getState() on every call
 
   // ---- Stop ----
   const handleStop = useCallback(() => {
