@@ -162,6 +162,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
       const ctrl = new AbortController();
       controllers.push(ctrl);
       let text2 = "";
+      let isFirstContent = true;
 
       (async () => {
         try {
@@ -174,11 +175,24 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
               max_tokens: provider.maxTokens ?? activeStyle?.maxTokens ?? 4096,
               reasoning_effort: provider.reasoningEffort },
             (delta: string) => {
-              text2 += delta;
+              if (isFirstContent) {
+                // First real content: clear any thinking indicator
+                isFirstContent = false;
+                text2 = delta;
+              } else {
+                text2 += delta;
+              }
               setCards((prev) => prev.map((c) => c.cardId === cardId
-                ? { ...c, result: (c.result || "") + delta } : c));
+                ? { ...c, result: text2 } : c));
             },
             ctrl.signal,
+            () => {
+              // Reasoning model is thinking — show indicator
+              if (isFirstContent) {
+                setCards((prev) => prev.map((c) => c.cardId === cardId
+                  ? { ...c, result: "⏳ 深度思考中..." } : c));
+              }
+            }
           );
           setCards((prev) => prev.map((c) => c.cardId === cardId
             ? { ...c, translating: false, latency: Date.now() - start } : c));

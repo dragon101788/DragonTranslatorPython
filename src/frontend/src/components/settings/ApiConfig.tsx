@@ -96,7 +96,7 @@ function ProviderCard({ provider, onUpdate, onDelete, canDelete }: ProviderCardP
     setStatusMsg(null);
     try {
       const adapter = new LLMAdapter(provider);
-      const model = provider.models[0] || "gpt-4o-mini";
+      const model = provider.activeModel || provider.models[0] || "gpt-4o-mini";
       const result = await adapter.testConnection(model);
       if (result.success) {
         setStatusMsg(`连接成功 · ${result.latency}ms · ${result.model}`);
@@ -241,44 +241,25 @@ function ProviderCard({ provider, onUpdate, onDelete, canDelete }: ProviderCardP
                 <span>拉取列表</span>
               </button>
             </div>
-            {provider.models.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {provider.models.map((model) => (
-                  <span
-                    key={model}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-lexi-accent/10 text-lexi-accent-hover text-[11px] rounded-md font-mono"
-                  >
-                    {model}
-                    <button
-                      onClick={() =>
-                        onUpdate({
-                          models: provider.models.filter((m) => m !== model),
-                        })
-                      }
-                      className="hover:text-red-400 transition-colors"
-                      title="移除"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <input
-              type="text"
-              value={provider.models.join(", ")}
-              onChange={(e) =>
-                onUpdate({
-                  models: e.target.value
-                    .split(",")
-                    .map((m) => m.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="gpt-4o-mini, gpt-4o（逗号分隔，或点击上方按钮自动拉取）"
-              className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-xs text-lexi-text placeholder-lexi-text-muted/40 focus:outline-none focus:ring-1 focus:ring-lexi-accent"
-            />
           </div>
+
+          {/* Active model selector */}
+          {provider.models.length > 0 && (
+            <div>
+              <label className="block text-[11px] text-lexi-text-muted mb-1">
+                选用模型
+              </label>
+              <select
+                value={provider.activeModel || provider.models[0] || ""}
+                onChange={(e) => onUpdate({ activeModel: e.target.value })}
+                className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
+              >
+                {provider.models.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex items-center gap-2 pt-1">
@@ -308,22 +289,6 @@ function ProviderCard({ provider, onUpdate, onDelete, canDelete }: ProviderCardP
               <span className="text-[11px] text-lexi-text-muted uppercase tracking-wide">
                 高级参数
               </span>
-
-              {/* Active model */}
-              <div>
-                <label className="block text-[11px] text-lexi-text-muted mb-1">
-                  选用模型
-                </label>
-                <select
-                  value={provider.activeModel || provider.models[0] || ""}
-                  onChange={(e) => onUpdate({ activeModel: e.target.value })}
-                  className="w-full bg-lexi-input border border-lexi-border rounded-lg px-3 py-2 text-sm text-lexi-text focus:outline-none focus:ring-1 focus:ring-lexi-accent"
-                >
-                  {provider.models.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
 
               {/* Temperature */}
               <div>
