@@ -172,6 +172,7 @@ class JsApi:
         self._event_queues: dict[str, list[Any]] = defaultdict(list)
         self._event_lock = threading.Lock()
         self._config_cache: dict[str, Any] = {}
+        self._history_cache: dict[str, Any] = {}
 
         # Pre-load config into cache so store.get() works immediately
         config_path = paths.app_dir() / "config.json"
@@ -179,6 +180,15 @@ class JsApi:
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     self._config_cache = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                pass
+
+        # Pre-load history into cache
+        history_path = paths.app_dir() / "history.json"
+        if history_path.exists():
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    self._history_cache = json.load(f)
             except (OSError, json.JSONDecodeError):
                 pass
 
@@ -328,6 +338,66 @@ class JsApi:
         except OSError as e:
             logger.log(3, "app", f"config_save failed: {e}")
             # Clean up tmp file on failure
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except OSError:
+                pass
+
+    # ---- History store (file-based JSON, separate from config) ----
+
+    def history_get(self, *_args: Any) -> Any:
+        """Read the history.json file and return its content.
+
+        Returns {"sessions": [...]} or an empty dict if no history exists.
+        """
+        history_path = paths.app_dir() / "history.json"
+        try:
+            if history_path.exists():
+                with open(history_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                logger.log(1, "history", f"history_get: loaded {len(data.get('sessions', []))} sessions")
+                return data
+        except (json.JSONDecodeError, OSError) as e:
+            logger.log(3, "history", f"history_get failed: {e}")
+        return {"sessions": []}
+
+    def history_set(self, args: dict) -> None:
+        """Cache history data in memory (written on history_save).
+
+        Args:
+            args: {"sessions": [...]}
+        """
+        sessions = args.get("sessions", [])
+        self._history_cache["sessions"] = sessions
+        logger.log(1, "history", f"history_set: cached {len(sessions)} sessions")
+
+    def history_save(self, *_args: Any) -> None:
+        """Write the in-memory history cache to history.json atomically."""
+        history_path = paths.app_dir() / "history.json"
+        tmp_path = history_path.with_suffix(".json.tmp")
+        try:
+            # Merge with existing data
+            existing: dict[str, Any] = {}
+            if history_path.exists():
+                try:
+                    with open(history_path, "r", encoding="utf-8") as f:
+                        existing = json.load(f)
+                except (OSError, json.JSONDecodeError):
+                    logger.log(2, "history", "history.json unreadable, starting fresh")
+
+            existing.update(self._history_cache)
+            self._history_cache = dict(existing)
+
+            # Atomic write: tmp → rename
+            os.makedirs(history_path.parent, exist_ok=True)
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(existing, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, history_path)
+
+            logger.log(1, "history", f"history_save: wrote {len(existing.get('sessions', []))} sessions to {history_path}")
+        except OSError as e:
+            logger.log(3, "app", f"history_save failed: {e}")
             try:
                 if tmp_path.exists():
                     tmp_path.unlink()

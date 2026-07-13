@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useConfigStore } from "../stores/configStore";
 import { useHistoryStore } from "../stores/historyStore";
-import type { LLMProvider, AppSettings } from "../types";
+import type { LLMProvider, AppSettings, TranslationRecord, TranslationSession } from "../types";
 import { DEFAULT_SETTINGS } from "../types";
 import { logger } from "../services/logger";
 
@@ -9,23 +9,25 @@ interface PersistedData {
   providers: LLMProvider[];
   activeProviderId: string | null;
   settings: AppSettings;
-  records: any[];
+  // records removed — now stored in separate history.json
 }
 
-// ---- gather / apply state snapshots ----
+interface HistoryFileData {
+  sessions: TranslationSession[];
+}
+
+// ---- gather / apply state snapshots (config only) ----
 
 function getSnapshot(): PersistedData {
   return {
     providers: useConfigStore.getState().providers,
     activeProviderId: useConfigStore.getState().activeProviderId,
     settings: useConfigStore.getState().settings,
-    records: useHistoryStore.getState().records,
   };
 }
 
 function applySnapshot(data: PersistedData) {
   if (data.providers && data.providers.length > 0) {
-    // Same guard for activeProviderId
     const activeProviderId =
       data.activeProviderId != null
         ? data.activeProviderId
@@ -35,20 +37,15 @@ function applySnapshot(data: PersistedData) {
       activeProviderId,
     });
   } else if (data.providers) {
-    // providers array exists but is empty — still update the list
     useConfigStore.setState({
       providers: data.providers,
     });
   }
   if (data.settings) {
-    // Merge saved settings with defaults so new fields (e.g. ttsRate)
-    // don't remain undefined on old configs.
     useConfigStore.setState({
       settings: { ...DEFAULT_SETTINGS, ...data.settings },
     });
   }
-  if (data.records)
-    useHistoryStore.setState({ records: data.records });
 }
 
 async function syncLogLevel(level?: string) {
@@ -94,8 +91,6 @@ function _diffSettings(prev: any, next: any): string[] {
 }
 
 async function loadFromFile(): Promise<boolean> {
-  // Use invoke directly instead of the bridge's store API which may
-  // have captured a stale pywebview reference during startup.
   const { invoke } = await import("../services/bridge");
   const data = await invoke<PersistedData | null>("config_get", { key: "app" });
   if (data) {
@@ -111,14 +106,97 @@ async function loadFromFile(): Promise<boolean> {
 }
 
 async function saveToFile(data: PersistedData) {
-  // Use invoke directly — bypasses the bridge's store API which may
-  // have captured a stale pywebview reference during startup.
   const { invoke } = await import("../services/bridge");
   await invoke("config_set", { key: "app", value: data });
   await invoke("config_save");
 }
 
-// ---- debounced persist ----
+// ---- History persistence (separate file) ----
+
+/**
+ * Migrate old flat TranslationRecord[] into session-based TranslationSession[].
+ * Groups records by (sourceText, timestamp) — records created in the same
+ * translation action share near-identical timestamps.
+ */
+export function migrateOldRecords(oldRecords: TranslationRecord[]): TranslationSession[] {
+  // Round timestamps to nearest second for grouping (records from same translation
+  // are created within ms of each other)
+  const groups = new Map<string, TranslationRecord[]>();
+
+  for (const record of oldRecords) {
+    // Group by sourceText + timestamp rounded to nearest 100ms
+    const roundedTs = Math.round(record.timestamp / 100) * 100;
+    const key = `${record.sourceText}|${record.sourceLang}|${record.targetLang}|${roundedTs}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(record);
+  }
+
+  const sessions: TranslationSession[] = [];
+  for (const records of groups.values()) {
+    const first = records[0];
+    sessions.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sourceText: first.sourceText,
+      sourceLang: first.sourceLang,
+      targetLang: first.targetLang,
+      timestamp: first.timestamp,
+      isFavorite: records.some((r) => r.isFavorite),
+      results: records.map((r) => ({
+        providerName: r.providerName,
+        providerId: "migrated-" + r.providerName,
+        model: r.model,
+        translatedText: r.translatedText,
+        latency: r.latency,
+      })),
+    });
+  }
+
+  return sessions.sort((a, b) => b.timestamp - a.timestamp).slice(0, 1000);
+}
+
+async function loadHistoryFromFile(): Promise<boolean> {
+  const { invoke } = await import("../services/bridge");
+  const data = await invoke<HistoryFileData | null>("history_get", {});
+  if (data && Array.isArray(data.sessions)) {
+    useHistoryStore.getState().setSessions(data.sessions);
+    logger.info(`历史记录从磁盘加载 (sessions=${data.sessions.length})`);
+    return true;
+  }
+  return false;
+}
+
+async function saveHistoryToFile(sessions: TranslationSession[]) {
+  const { invoke } = await import("../services/bridge");
+  await invoke("history_set", { sessions });
+  await invoke("history_save");
+}
+
+async function loadHistory() {
+  // Try loading history.json first
+  const loaded = await loadHistoryFromFile();
+  if (loaded) return;
+
+  // Try migration from old config.json records
+  try {
+    const { invoke } = await import("../services/bridge");
+    const oldData = await invoke<{ records?: TranslationRecord[] } | null>("config_get", { key: "app" });
+    if (oldData?.records && oldData.records.length > 0) {
+      logger.info(`检测到旧格式记录 (${oldData.records.length}条), 开始迁移...`);
+      const sessions = migrateOldRecords(oldData.records);
+      if (sessions.length > 0) {
+        useHistoryStore.getState().setSessions(sessions);
+        await saveHistoryToFile(sessions);
+        logger.info(`迁移完成: ${sessions.length} 个会话`);
+      }
+    }
+  } catch (e: any) {
+    logger.error(`历史迁移失败: ${e?.message || e}`);
+  }
+}
+
+// ---- debounced persist (config) ----
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let lastWritten: string | null = null;
@@ -135,13 +213,38 @@ async function persistNow() {
     const serialized = JSON.stringify(data);
     if (serialized === lastWritten) return;
     lastWritten = serialized;
-
     await saveToFile(data);
   } catch (e) {
     console.error("[Persistence] ❌ Write failed:", e);
     logger.error(`[Persist] Write failed: ${(e as any)?.message || e}`);
   }
 }
+
+// ---- debounced persist (history) ----
+
+let historySaveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastHistoryWritten: string | null = null;
+
+function scheduleHistoryPersist() {
+  if (historySaveTimer) clearTimeout(historySaveTimer);
+  historySaveTimer = setTimeout(persistHistoryNow, 300);
+}
+
+async function persistHistoryNow() {
+  historySaveTimer = null;
+  try {
+    const sessions = useHistoryStore.getState().sessions;
+    const serialized = JSON.stringify(sessions);
+    if (serialized === lastHistoryWritten) return;
+    lastHistoryWritten = serialized;
+    await saveHistoryToFile(sessions);
+  } catch (e) {
+    console.error("[Persistence] ❌ History write failed:", e);
+    logger.error(`[Persist] History write failed: ${(e as any)?.message || e}`);
+  }
+}
+
+// ---- config load defaults ----
 
 async function loadDefaults() {
   let raw: { providers: LLMProvider[]; settings: AppSettings } | null = null;
@@ -162,7 +265,6 @@ async function loadDefaults() {
   const data: PersistedData = {
     ...raw,
     activeProviderId: raw.providers[0]?.id ?? null,
-    records: [],
   };
   applySnapshot(data);
   logger.info(
@@ -190,6 +292,7 @@ async function loadPersisted() {
 
 /**
  * File-based persistence via Python backend. Uses Zustand `subscribe` for auto-save.
+ * Config and history are persisted separately: config.json and history.json.
  */
 export function usePersistence() {
   const readyRef = useRef(false);
@@ -199,12 +302,16 @@ export function usePersistence() {
     let cancelled = false;
 
     // 1. Load saved state
-    loadPersisted().then(() => {
+    loadPersisted().then(async () => {
       if (cancelled) return;
+
+      // 2. Load history (separate file, with migration fallback)
+      await loadHistory();
+
       readyRef.current = true;
       logger.info("[Persist] load complete, attaching subscribers");
 
-      // 2. Subscribe to store changes → auto-persist
+      // 3. Subscribe to store changes → auto-persist
       const unsub1 = useConfigStore.subscribe((state: any, prev: any) => {
         if (readyRef.current) {
           const changed = _diffSettings(prev?.settings, state?.settings);
@@ -215,17 +322,22 @@ export function usePersistence() {
         }
       });
       const unsub2 = useHistoryStore.subscribe(() => {
-        if (readyRef.current) schedulePersist();
+        if (readyRef.current) scheduleHistoryPersist();
       });
       unsubRef.current = [unsub1, unsub2];
     });
 
-    // 3. Best-effort flush before unload
+    // 4. Best-effort flush before unload
     const onBeforeUnload = () => {
       if (saveTimer) {
         clearTimeout(saveTimer);
         saveTimer = null;
         persistNow();
+      }
+      if (historySaveTimer) {
+        clearTimeout(historySaveTimer);
+        historySaveTimer = null;
+        persistHistoryNow();
       }
     };
     window.addEventListener("beforeunload", onBeforeUnload);

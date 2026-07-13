@@ -8,6 +8,7 @@ import DebugTab from "./DebugTab";
 import BergamotTab from "./BergamotTab";
 import { useConfigStore } from "../../stores/configStore";
 import { useHistoryStore } from "../../stores/historyStore";
+import { migrateOldRecords } from "../../hooks/usePersistence";
 
 interface SettingsDialogProps {
   onClose: () => void;
@@ -88,7 +89,14 @@ export default function SettingsDialog({ onClose, defaultTab }: SettingsDialogPr
         const data = await resp.json();
         if (data.providers) useConfigStore.setState({ providers: data.providers });
         if (data.settings) useConfigStore.setState({ settings: data.settings });
-        if (data.records) useHistoryStore.setState({ records: data.records });
+        // Support both new sessions format and legacy records format
+        if (data.sessions) {
+          useHistoryStore.getState().setSessions(data.sessions);
+        } else if (data.records) {
+          // Legacy: migrate on pull
+          const sessions = migrateOldRecords(data.records);
+          useHistoryStore.getState().setSessions(sessions);
+        }
 
         setSyncStatus(`✅ 拉取成功 (${new Date().toLocaleTimeString()})`);
       } else {
@@ -96,7 +104,7 @@ export default function SettingsDialog({ onClose, defaultTab }: SettingsDialogPr
         const data = {
           providers: useConfigStore.getState().providers,
           settings: useConfigStore.getState().settings,
-          records: useHistoryStore.getState().records,
+          sessions: useHistoryStore.getState().sessions,
         };
 
         const url = `${webdavUrl.replace(/\/+$/, "")}/${webdavPath.replace(/^\/+/, "")}`;

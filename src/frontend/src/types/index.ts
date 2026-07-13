@@ -14,7 +14,8 @@ export interface LLMProvider {
   reasoningEffort?: "low" | "medium" | "high";  // DeepSeek/Claude/OpenAI o-series
 }
 
-// ============== Translation Record ==============
+// ============== Translation Record (deprecated) ==============
+/** @deprecated Use TranslationSession instead. Kept for migration from old config format. */
 export interface TranslationRecord {
   id: string;
   sourceText: string;
@@ -26,6 +27,34 @@ export interface TranslationRecord {
   latency: number; // ms
   timestamp: number;
   isFavorite: boolean;
+}
+
+// ============== Translation Session (new history model) ==============
+
+export interface TranslationResult {
+  providerName: string;
+  providerId: string;
+  model: string;
+  translatedText: string; // Markdown
+  latency: number; // ms
+}
+
+export interface TranslationSession {
+  id: string;
+  sourceText: string;
+  sourceLang: string;
+  targetLang: string;
+  timestamp: number;
+  isFavorite: boolean;
+  note?: string;
+  tags?: string[];
+  results: TranslationResult[];
+}
+
+export interface HistoryExport {
+  version: 1;
+  exportedAt: number;
+  sessions: TranslationSession[];
 }
 
 // ============== App Settings ==============

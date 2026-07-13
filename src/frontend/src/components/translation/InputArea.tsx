@@ -7,6 +7,8 @@ interface InputAreaProps {
   onStop: () => void;
   translating: boolean;
   onClear: () => void;
+  reuseText?: string | null;
+  onReuseConsumed?: () => void;
 }
 
 export default function InputArea({
@@ -14,11 +16,23 @@ export default function InputArea({
   onStop,
   translating,
   onClear,
+  reuseText,
+  onReuseConsumed,
 }: InputAreaProps) {
   const [text, setText] = useState("");
   const [charCount, setCharCount] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tts = useTTS();
+
+  // Consume reuse text from history panel
+  useEffect(() => {
+    if (reuseText) {
+      setText(reuseText);
+      setCharCount(reuseText.length);
+      textareaRef.current?.focus();
+      onReuseConsumed?.();
+    }
+  }, [reuseText, onReuseConsumed]);
 
   // Auto-focus on mount and whenever window becomes visible
   useEffect(() => {

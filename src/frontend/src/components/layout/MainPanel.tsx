@@ -8,7 +8,7 @@ import { useConfigStore } from "../../stores/configStore";
 import { useHistoryStore } from "../../stores/historyStore";
 import { useTTS } from "../../hooks/useTTS";
 import { logger } from "../../services/logger";
-import type { TranslationRecord } from "../../types";
+import type { TranslationResult } from "../../types";
 import { Loader2, WifiOff } from "lucide-react";
 
 type ViewType = "translation" | "history" | "settings";
@@ -23,21 +23,6 @@ interface CardData {
   error: string | null;
   translating: boolean;
   latency: number;
-}
-
-function makeRecord(source: string, translated: string, provider: string, model: string, latency: number): TranslationRecord {
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    sourceText: source,
-    translatedText: translated,
-    sourceLang: /[一-鿿㐀-䶿]/.test(source) ? "中文" : "英文",
-    targetLang: /[一-鿿㐀-䶿]/.test(translated) ? "中文" : "英文",
-    providerName: provider,
-    model,
-    latency,
-    timestamp: Date.now(),
-    isFavorite: false,
-  };
 }
 
 interface MainPanelProps {
@@ -58,6 +43,15 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
   const [cards, setCards] = useState<CardData[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const abortRefs = useRef<AbortController[]>([]);
+
+  // ---- Reuse text from history ----
+  const [reuseText, setReuseText] = useState<string | null>(null);
+
+  // ---- Session accumulation (for history) ----
+  const sessionResultsRef = useRef<TranslationResult[]>([]);
+  const sessionMetaRef = useRef<{ sourceText: string; sourceLang: string; targetLang: string }>({
+    sourceText: "", sourceLang: "", targetLang: ""
+  });
 
   // Copy state
   const [copyState, setCopyState] = useState<Record<string, "idle" | "copied">>({});
@@ -129,8 +123,19 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
         : c
       ));
       logger.info(`[Bergamot] 完成 chars=${bergamotResult.length} latency=${elapsed}ms`);
-      // Record history
-      useHistoryStore.getState().addRecord(makeRecord(text, bergamotResult, "离线翻译", "Bergamot NMT", elapsed));
+      // Accumulate for session
+      sessionMetaRef.current = {
+        sourceText: text,
+        sourceLang: /[一-鿿㐀-䶿]/.test(text) ? "中文" : "英文",
+        targetLang: /[一-鿿㐀-䶿]/.test(bergamotResult) ? "中文" : "英文",
+      };
+      sessionResultsRef.current = [{
+        providerName: "离线翻译",
+        providerId: "bergamot",
+        model: "Bergamot NMT",
+        translatedText: bergamotResult,
+        latency: elapsed,
+      }];
     } catch (e: any) {
       setCards((prev) => prev.map((c) => c.cardId === "bergamot"
         ? { ...c, error: e?.message || "翻译失败", translating: false }
@@ -144,6 +149,16 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     // Stage 2: LLM polish — all providers in parallel
     const hasLLM = !!(currentActiveStyle?.prompt && currentProviders.length > 0);
     if (!hasLLM) {
+      // Commit Bergamot-only session
+      if (sessionMetaRef.current.sourceText) {
+        useHistoryStore.getState().addSession({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          ...sessionMetaRef.current,
+          timestamp: Date.now(),
+          isFavorite: false,
+          results: sessionResultsRef.current,
+        });
+      }
       setIsTranslating(false);
       return;
     }
@@ -205,7 +220,14 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           setCards((prev) => prev.map((c) => c.cardId === cardId
             ? { ...c, translating: false, latency: Date.now() - start } : c));
           logger.info(`[Polish:${provider.id}] 完成 chars=${text2.length} latency=${Date.now() - start}ms\n  result: ${text2.slice(0, 300)}`);
-          useHistoryStore.getState().addRecord(makeRecord(text, text2, provider.name, provider.activeModel || provider.models[0] || "auto", Date.now() - start));
+          // Accumulate result for session
+          sessionResultsRef.current.push({
+            providerName: provider.name,
+            providerId: provider.id,
+            model: provider.activeModel || provider.models[0] || "auto",
+            translatedText: text2,
+            latency: Date.now() - start,
+          });
         } catch (e: any) {
           if (e?.name !== "AbortError") {
             setCards((prev) => prev.map((c) => c.cardId === cardId
@@ -213,7 +235,19 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           }
         } finally {
           remaining--;
-          if (remaining <= 0) setIsTranslating(false);
+          if (remaining <= 0) {
+            // Commit session when all providers finish
+            if (sessionMetaRef.current.sourceText && sessionResultsRef.current.length > 0) {
+              useHistoryStore.getState().addSession({
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                ...sessionMetaRef.current,
+                timestamp: Date.now(),
+                isFavorite: false,
+                results: sessionResultsRef.current,
+              });
+            }
+            setIsTranslating(false);
+          }
         }
       })();
     });
@@ -243,7 +277,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
       )}
       {editingStyleId === null && (
         <div style={{ display: view === "history" ? "flex" : "none", flex: 1, minHeight: 0 }}>
-          <HistoryPanel onClose={onBack} />
+          <HistoryPanel onClose={onBack} onReuseText={setReuseText} />
         </div>
       )}
       {editingStyleId === null && (
@@ -359,6 +393,8 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
                     onStop={handleStop}
                     translating={isTranslating}
                     onClear={handleClear}
+                    reuseText={reuseText}
+                    onReuseConsumed={() => setReuseText(null)}
                   />
                 </div>
               </>
@@ -371,6 +407,8 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
                     onStop={handleStop}
                     translating={isTranslating}
                     onClear={handleClear}
+                    reuseText={reuseText}
+                    onReuseConsumed={() => setReuseText(null)}
                   />
                 </div>
                 {/* OutputCards area */}
