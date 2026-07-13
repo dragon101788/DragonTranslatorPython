@@ -170,9 +170,28 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
       .replace("{targetLang}", targetLang);
 
     const controllers: AbortController[] = [];
-    let remaining = currentProviders.length;
 
-    currentProviders.forEach((provider) => {
+    // 过滤未运行的本地 provider
+    let workingProviders = currentProviders;
+    const localProv = workingProviders.find((p) => p.id === "local");
+    if (localProv) {
+      try {
+        const { invoke } = await import("../../services/bridge");
+        const status = await invoke<{ running: boolean }>("get_local_model_status", {
+          port: currentSettings.localModel.port,
+        });
+        if (!status.running) {
+          workingProviders = workingProviders.filter((p) => p.id !== "local");
+          logger.info("本地模型未运行，跳过本地 provider 润色");
+        }
+      } catch {
+        // 状态检查失败，保守起见保留 provider 尝试调用
+      }
+    }
+
+    let remaining = workingProviders.length;
+
+    workingProviders.forEach((provider) => {
       const cardId = `polish-${provider.id}`;
       const start = Date.now();
       const card: CardData = {

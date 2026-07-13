@@ -43,6 +43,12 @@ function App() {
         }
       } catch (e: any) {
         logger.warn(`本地模型自动启动失败: ${e?.message || e}`);
+        // 清理旧会话遗留的本地 provider（服务未实际运行）
+        const st = useConfigStore.getState();
+        if (st.providers.some((p) => p.id === "local")) {
+          st.deleteProvider("local");
+          logger.info("已移除未运行的本地 provider");
+        }
       }
     }, 1500);
     return () => clearTimeout(timer);
