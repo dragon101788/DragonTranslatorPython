@@ -31,7 +31,11 @@ runtime/web/
 models/*.gguf
 models/piper-voices/*.onnx
 models/piper-voices/*.onnx.json
-runtime/piper-voices/
+runtime/piper-voices/*
+!runtime/piper-voices/en_US-lessac-medium.onnx
+!runtime/piper-voices/en_US-lessac-medium.onnx.json
+!runtime/piper-voices/zh_CN-huayan-medium.onnx
+!runtime/piper-voices/zh_CN-huayan-medium.onnx.json
 
 # PyInstaller
 *.spec.bak
