@@ -121,7 +121,7 @@ function App() {
 
   // ---- View management ----
   const [view, setView] = useState<ViewType>("translation");
-  const [editingStyleId, setEditingStyleId] = useState<string | null>(null);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
 
   const handleCloseRequest = useCallback(() => {
     // auto-start / shortcut sync
@@ -137,9 +137,9 @@ function App() {
     }
   }, []);
 
-  const goToTranslation = useCallback(() => { setView("translation"); setEditingStyleId(null); }, []);
-  const goToHistory = () => { setView("history"); setEditingStyleId(null); };
-  const goToSettings = () => { setView("settings"); setEditingStyleId(null); };
+  const goToTranslation = useCallback(() => { setView("translation"); setEditingAgentId(null); }, []);
+  const goToHistory = () => { setView("history"); setEditingAgentId(null); };
+  const goToSettings = () => { setView("settings"); setEditingAgentId(null); };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-lexi-bg overflow-hidden">
@@ -156,13 +156,13 @@ function App() {
           onSelectTranslation={goToTranslation}
           onOpenHistory={goToHistory}
           onOpenSettings={goToSettings}
-          onEditStyle={(id) => setEditingStyleId(id)}
+          onEditAgent={(id) => setEditingAgentId(id)}
         />
         <div className="flex-1 min-w-0">
           <MainPanel
             view={view}
-            editingStyleId={editingStyleId}
-            onCloseStyleEditor={() => setEditingStyleId(null)}
+            editingAgentId={editingAgentId}
+            onCloseAgentEditor={() => setEditingAgentId(null)}
             onBack={goToTranslation}
           />
         </div>

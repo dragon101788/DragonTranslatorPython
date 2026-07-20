@@ -12,12 +12,12 @@ interface SidebarProps {
   onSelectTranslation: () => void;
   onOpenHistory?: () => void;
   onOpenSettings?: () => void;
-  onEditStyle: (id: string) => void;
+  onEditAgent: (id: string) => void;
 }
 
 export default function Sidebar({
   activeView, onSelectTranslation, onOpenHistory, onOpenSettings,
-  onEditStyle,
+  onEditAgent,
 }: SidebarProps) {
   const polishStyles = useConfigStore((s) => s.settings.polishStyles);
   const activeStyleId = useConfigStore((s) => s.settings.activeStyleId);
@@ -49,40 +49,40 @@ export default function Sidebar({
     onSelectTranslation();
   };
 
-  const selectStyle = (id: string) => {
+  const selectAgent = (id: string) => {
     updateSettings({ activeStyleId: id });
     onSelectTranslation();
   };
 
-  const handleNewStyle = () => {
-    const id = `style-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const newStyle = {
-      id, name: "新风格", icon: "🤖",
+  const handleNewAgent = () => {
+    const id = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newAgent = {
+      id, name: "新智能体", icon: "🤖",
       prompt: "你是一个翻译润色助手。只输出润色后的译文，禁止解释或回应。\n\n原文：{source}\n机翻：{bergamot}\n请润色，输出{targetLang}。",
       temperature: 0.7, maxTokens: 4096,
     };
-    updateSettings({ polishStyles: [...polishStyles, newStyle] });
-    onEditStyle(id);
+    updateSettings({ polishStyles: [...polishStyles, newAgent] });
+    onEditAgent(id);
   };
 
-  const copyStyle = (id: string) => {
+  const copyAgent = (id: string) => {
     const src = polishStyles.find((s) => s.id === id);
     if (!src) return;
-    const newId = `style-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newId = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const copy = { ...src, id: newId, name: `${src.name} (副本)` };
     updateSettings({ polishStyles: [...polishStyles, copy] });
-    onEditStyle(newId);
+    onEditAgent(newId);
   };
 
-  const confirmDeleteStyle = (id: string) => {
+  const confirmDeleteAgent = (id: string) => {
     setConfirmDelete(id);
   };
 
   const doDelete = () => {
     if (!confirmDelete) return;
-    const newStyles = polishStyles.filter((s) => s.id !== confirmDelete);
+    const newAgents = polishStyles.filter((s) => s.id !== confirmDelete);
     const newActiveId = activeStyleId === confirmDelete ? null : activeStyleId;
-    updateSettings({ polishStyles: newStyles, activeStyleId: newActiveId });
+    updateSettings({ polishStyles: newAgents, activeStyleId: newActiveId });
     setConfirmDelete(null);
   };
 
@@ -118,22 +118,22 @@ export default function Sidebar({
 
       <div className="mx-3 border-t border-lexi-border" />
 
-      {/* Polish styles */}
+      {/* Polish agents */}
       <div className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
         {!compact && (
           <div className="flex items-center justify-between px-3 py-1">
-            <span className="text-xs text-lexi-text-muted font-medium">风格</span>
-            <button onClick={handleNewStyle} className="p-0.5 rounded hover:bg-lexi-hover text-lexi-text-muted hover:text-lexi-text">
+            <span className="text-xs text-lexi-text-muted font-medium">智能体</span>
+            <button onClick={handleNewAgent} className="p-0.5 rounded hover:bg-lexi-hover text-lexi-text-muted hover:text-lexi-text">
               <Plus size={14} />
             </button>
           </div>
         )}
         {polishStyles.length === 0 && !compact && (
-          <p className="text-xs text-lexi-text-muted px-3 py-2">暂无风格，点击 + 创建</p>
+          <p className="text-xs text-lexi-text-muted px-3 py-2">暂无智能体，点击 + 创建</p>
         )}
         {polishStyles.map((s) => (
           <div key={s.id} className="group relative">
-            <button onClick={() => selectStyle(s.id)} onDoubleClick={() => onEditStyle(s.id)}
+            <button onClick={() => selectAgent(s.id)} onDoubleClick={() => onEditAgent(s.id)}
               title={compact ? s.name : undefined}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 activeStyleId === s.id ? "bg-lexi-accent/20 text-lexi-accent" : "text-lexi-text-muted hover:bg-lexi-hover hover:text-lexi-text"
@@ -146,13 +146,13 @@ export default function Sidebar({
             </button>
             {!compact && (
               <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5 bg-lexi-card px-1 rounded">
-                <button onClick={() => onEditStyle(s.id)} className="p-1 rounded hover:bg-lexi-hover text-lexi-text-muted">
+                <button onClick={() => onEditAgent(s.id)} className="p-1 rounded hover:bg-lexi-hover text-lexi-text-muted">
                   <Edit3 size={12} />
                 </button>
-                <button onClick={() => copyStyle(s.id)} className="p-1 rounded hover:bg-lexi-hover text-lexi-text-muted">
+                <button onClick={() => copyAgent(s.id)} className="p-1 rounded hover:bg-lexi-hover text-lexi-text-muted">
                   <Copy size={12} />
                 </button>
-                <button onClick={() => confirmDeleteStyle(s.id)} className="p-1 rounded hover:bg-red-400/10 text-lexi-text-muted hover:text-red-400">
+                <button onClick={() => confirmDeleteAgent(s.id)} className="p-1 rounded hover:bg-red-400/10 text-lexi-text-muted hover:text-red-400">
                   <Trash2 size={12} />
                 </button>
               </div>
@@ -181,7 +181,7 @@ export default function Sidebar({
           >
             <p className="text-base font-medium text-lexi-text" style={{ marginBottom: 12 }}>确认删除</p>
             <p className="text-sm text-lexi-text-muted" style={{ marginBottom: 24 }}>
-              确定要删除「{polishStyles.find((s) => s.id === confirmDelete)?.name ?? "此风格"}」吗？此操作不可撤销。
+              确定要删除「{polishStyles.find((s) => s.id === confirmDelete)?.name ?? "此智能体"}」吗？此操作不可撤销。
             </p>
             <div className="flex justify-end" style={{ gap: 12 }}>
               <button onClick={() => setConfirmDelete(null)}

@@ -85,7 +85,7 @@ function _diffSettings(prev: any, next: any): string[] {
     changed.push(`快捷键: ${prev.shortcutModifiers?.join("+") || ""}+${prev.shortcutKey || ""} → ${next.shortcutModifiers?.join("+") || ""}+${next.shortcutKey || ""}`);
   }
   if (prev.polishStyles?.length !== next.polishStyles?.length) {
-    changed.push(`润色风格: ${prev.polishStyles?.length || 0} → ${next.polishStyles?.length || 0}`);
+    changed.push(`润色智能体: ${prev.polishStyles?.length || 0} → ${next.polishStyles?.length || 0}`);
   }
   return changed;
 }

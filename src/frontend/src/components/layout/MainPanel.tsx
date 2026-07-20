@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import InputArea from "../translation/InputArea";
 import OutputCard from "../translation/OutputCard";
 import SettingsDialog from "../settings/SettingsDialog";
-import StyleManager from "../settings/StyleManager";
+import AgentManager from "../settings/AgentManager";
 import HistoryPanel from "./HistoryPanel";
 import { useConfigStore } from "../../stores/configStore";
 import { useHistoryStore } from "../../stores/historyStore";
@@ -27,16 +27,16 @@ interface CardData {
 
 interface MainPanelProps {
   view: ViewType;
-  editingStyleId: string | null;
-  onCloseStyleEditor: () => void;
+  editingAgentId: string | null;
+  onCloseAgentEditor: () => void;
   onBack: () => void;
 }
 
-export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, onBack }: MainPanelProps) {
+export default function MainPanel({ view, editingAgentId, onCloseAgentEditor, onBack }: MainPanelProps) {
   const settings = useConfigStore((s) => s.settings);
   const tts = useTTS();
 
-  const activeStyle = settings.activeStyleId ? settings.polishStyles.find((s) => s.id === settings.activeStyleId) || null : null;
+  const activeAgent = settings.activeStyleId ? settings.polishStyles.find((s) => s.id === settings.activeStyleId) || null : null;
   const providers = useConfigStore((s) => s.providers);
 
   // ---- Cards state ----
@@ -96,7 +96,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     const state = useConfigStore.getState();
     const currentProviders = state.providers;
     const currentSettings = state.settings;
-    const currentActiveStyle = currentSettings.activeStyleId
+    const currentActiveAgent = currentSettings.activeStyleId
       ? currentSettings.polishStyles.find((s) => s.id === currentSettings.activeStyleId) || null
       : null;
 
@@ -147,7 +147,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     }
 
     // Stage 2: LLM polish — all providers in parallel
-    const hasLLM = !!(currentActiveStyle?.prompt && currentProviders.length > 0);
+    const hasLLM = !!(currentActiveAgent?.prompt && currentProviders.length > 0);
     if (!hasLLM) {
       // Commit Bergamot-only session
       if (sessionMetaRef.current.sourceText) {
@@ -164,7 +164,7 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     }
 
     const targetLang = /[一-鿿㐀-䶿]/.test(bergamotResult) ? "中文" : "英文";
-    const userMsg = (currentActiveStyle?.prompt || "")
+    const userMsg = (currentActiveAgent?.prompt || "")
       .replace("{source}", text)
       .replace("{bergamot}", bergamotResult)
       .replace("{targetLang}", targetLang);
@@ -187,6 +187,13 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
       } catch {
         // 状态检查失败，保守起见保留 provider 尝试调用
       }
+    }
+
+    // 过滤智能体指定的 providerIds（未设 = 全部）
+    if (currentActiveAgent?.providerIds !== undefined) {
+      workingProviders = workingProviders.filter((p) =>
+        currentActiveAgent!.providerIds!.includes(p.id)
+      );
     }
 
     let remaining = workingProviders.length;
@@ -213,8 +220,8 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
           await adapter.chatStream(
             { model: provider.activeModel || provider.models[0] || "gpt-4o-mini",
               messages: [{ role: "user", content: userMsg }],
-              temperature: provider.temperature ?? currentActiveStyle?.temperature ?? 0.7,
-              max_tokens: provider.maxTokens ?? currentActiveStyle?.maxTokens ?? 4096,
+              temperature: provider.temperature ?? currentActiveAgent?.temperature ?? 0.7,
+              max_tokens: provider.maxTokens ?? currentActiveAgent?.maxTokens ?? 4096,
               reasoning_effort: provider.reasoningEffort },
             (delta: string) => {
               if (isFirstContent) {
@@ -287,31 +294,31 @@ export default function MainPanel({ view, editingStyleId, onCloseStyleEditor, on
     setCards([]);
   }, []);
 
-  const polishOn = !!(activeStyle?.prompt && providers.length > 0);
+  const polishOn = !!(activeAgent?.prompt && providers.length > 0);
 
   return (
     <div className="flex flex-col h-full bg-lexi-bg">
-      {editingStyleId !== null && (
-        <StyleManager editStyleId={editingStyleId} onClose={onCloseStyleEditor} />
+      {editingAgentId !== null && (
+        <AgentManager editAgentId={editingAgentId} onClose={onCloseAgentEditor} />
       )}
-      {editingStyleId === null && (
+      {editingAgentId === null && (
         <div style={{ display: view === "history" ? "flex" : "none", flex: 1, minHeight: 0 }}>
           <HistoryPanel onClose={onBack} onReuseText={setReuseText} />
         </div>
       )}
-      {editingStyleId === null && (
+      {editingAgentId === null && (
         <div style={{ display: view === "settings" ? "flex" : "none", flex: 1, minHeight: 0 }}>
-          <SettingsDialog onClose={onBack} defaultTab={activeStyle?.prompt ? undefined : "bergamot"} />
+          <SettingsDialog onClose={onBack} defaultTab={activeAgent?.prompt ? undefined : "bergamot"} />
         </div>
       )}
 
-      {editingStyleId === null && (
+      {editingAgentId === null && (
         <div className="flex flex-col h-full min-h-0 pt-4"
           style={{ display: view === "translation" ? "flex" : "none" }}>
           {/* Status bar */}
           <div className="flex items-center gap-2 px-5 py-1.5 text-xs text-lexi-text-muted border-b border-lexi-border/50 shrink-0">
-            <span>{activeStyle?.icon || "🔄"}</span>
-            <span className="font-medium text-lexi-text">{activeStyle?.name || "直接翻译"}</span>
+            <span>{activeAgent?.icon || "🔄"}</span>
+            <span className="font-medium text-lexi-text">{activeAgent?.name || "直接翻译"}</span>
             <span className="text-lexi-border">|</span>
             {polishOn ? (
               <>

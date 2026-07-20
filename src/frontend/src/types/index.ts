@@ -86,8 +86,8 @@ export interface AppSettings {
   logLevel: "debug" | "info" | "warn" | "error";
   // Bergamot offline translation
   bergamot: BergamotConfig;
-  // Polish styles (LLM polishing on top of Bergamot)
-  polishStyles: PolishStyle[];
+  // Polish agents (LLM polishing on top of Bergamot)
+  polishStyles: PolishAgent[];
   activeStyleId: string | null;
   // Local model (llamafile)
   localModel: LocalModelConfig;
@@ -105,13 +105,14 @@ export interface GgufModelInfo {
   size_bytes: number;
 }
 
-export interface PolishStyle {
+export interface PolishAgent {
   id: string;
   name: string;
   icon: string;
   prompt: string; // 完整提示词模板。空 = 仅 Bergamot
   temperature: number;
   maxTokens: number;
+  providerIds?: string[]; // 未设 = 全部 provider；显式指定则仅使用列表中的 provider
 }
 
 export interface CuratedModel {
